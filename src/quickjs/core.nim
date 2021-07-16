@@ -201,7 +201,7 @@ const
 
 type
   JSCFunction* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                    argv: ptr JSValue): JSValue
+                    argv: ptr JSValue): JSValue {.cdecl.}
   JSCFunctionMagic* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
                          argv: ptr JSValue; magic: cint): JSValue
   JSCFunctionData* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
@@ -592,8 +592,13 @@ proc JS_CallConstructor*(ctx: ptr JSContext; func_obj: JSValue; argc: cint;
 proc JS_CallConstructor2*(ctx: ptr JSContext; func_obj: JSValue; new_target: JSValue;
                          argc: cint; argv: ptr JSValue): JSValue {.
     importc: "JS_CallConstructor2", header: headerquickjs.}
+proc JS_EvalObject*(ctx: ptr JSContext; this: JSValueConst, val: JSValueConst;
+              flags: cint; scope_idx: cint): JSValue {.importc: "JS_EvalObject", header: headerquickjs.}
+proc JS_EvalThis*(ctx: ptr JSContext; this: JSValueConst, input: cstring; input_len: csize_t;
+              filename: cstring; eval_flags: cint): JSValue {.importc: "JS_EvalThis", header: headerquickjs.}
 proc JS_Eval*(ctx: ptr JSContext; input: cstring; input_len: csize_t; filename: cstring;
              eval_flags: cint): JSValue {.importc: "JS_Eval", header: headerquickjs.}
+
 const
   JS_EVAL_BINARY_LOAD_ONLY* = (1 shl 0) ##  only load the module
 
@@ -702,36 +707,35 @@ type                          ##  XXX: should rename for namespace isolation
     JS_CFUNC_constructor_or_func_magic, JS_CFUNC_f_f, JS_CFUNC_f_f_f,
     JS_CFUNC_getter, JS_CFUNC_setter, JS_CFUNC_getter_magic, JS_CFUNC_setter_magic,
     JS_CFUNC_iterator_next
-  JSCFunctionType* {.importc: "JSCFunctionType", header: headerquickjs, bycopy.} = object {.
-      union.}
-    generic* {.importc: "generic".}: ptr JSCFunction
-    generic_magic* {.importc: "generic_magic".}: proc (ctx: ptr JSContext;
+  JSCFunctionType* {.union.} = object
+    generic*: JSCFunction
+    generic_magic*: proc (ctx: ptr JSContext;
         this_val: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue
-    constructor* {.importc: "constructor".}: ptr JSCFunction
-    constructor_magic* {.importc: "constructor_magic".}: proc (ctx: ptr JSContext;
+    constructor*: JSCFunction
+    constructor_magic*: proc (ctx: ptr JSContext;
         new_target: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue
-    constructor_or_func* {.importc: "constructor_or_func".}: ptr JSCFunction
-    f_f* {.importc: "f_f".}: proc (a1: cdouble): cdouble
-    f_f_f* {.importc: "f_f_f".}: proc (a1: cdouble; a2: cdouble): cdouble
-    getter* {.importc: "getter".}: proc (ctx: ptr JSContext; this_val: JSValue): JSValue
-    setter* {.importc: "setter".}: proc (ctx: ptr JSContext; this_val: JSValue;
+    constructor_or_func*: JSCFunction
+    f_f*: proc (a1: cdouble): cdouble
+    f_f_f*: proc (a1: cdouble; a2: cdouble): cdouble
+    getter*: proc (ctx: ptr JSContext; this_val: JSValue): JSValue
+    setter*: proc (ctx: ptr JSContext; this_val: JSValue;
                                      val: JSValue): JSValue
-    getter_magic* {.importc: "getter_magic".}: proc (ctx: ptr JSContext;
+    getter_magic*: proc (ctx: ptr JSContext;
         this_val: JSValue; magic: cint): JSValue
-    setter_magic* {.importc: "setter_magic".}: proc (ctx: ptr JSContext;
+    setter_magic*: proc (ctx: ptr JSContext;
         this_val: JSValue; val: JSValue; magic: cint): JSValue
-    iterator_next* {.importc: "iterator_next".}: proc (ctx: ptr JSContext;
+    iterator_next*: proc (ctx: ptr JSContext;
         this_val: JSValue; argc: cint; argv: ptr JSValue; pdone: ptr cint; magic: cint): JSValue
 
 
 
-proc JS_NewCFunction2*(ctx: ptr JSContext; `func`: ptr JSCFunction; name: cstring;
+proc JS_NewCFunction2*(ctx: ptr JSContext; `func`: JSCFunction; name: cstring;
                       length: cint; cproto: JSCFunctionEnum; magic: cint): JSValue {.
     importc: "JS_NewCFunction2", header: headerquickjs.}
 proc JS_NewCFunctionData*(ctx: ptr JSContext; `func`: ptr JSCFunctionData;
                          length: cint; magic: cint; data_len: cint; data: ptr JSValue): JSValue {.
     importc: "JS_NewCFunctionData", header: headerquickjs.}
-proc JS_NewCFunction*(ctx: ptr JSContext; `func`: ptr JSCFunction; name: cstring;
+proc JS_NewCFunction*(ctx: ptr JSContext; `func`: JSCFunction; name: cstring;
                      length: cint): JSValue {.importc: "JS_NewCFunction",
     header: headerquickjs.}
 
@@ -743,45 +747,39 @@ proc JS_NewCFunctionMagic*(ctx: ptr JSContext; `func`: ptr JSCFunctionMagic;
 ##  C property definition
 
 type
-  INNER_C_STRUCT_nimterop_1493119302_602* {.importc: "no_name",
-      header: headerquickjs, bycopy.} = object
-    length* {.importc: "length".}: uint8 ##  XXX: should move outside union
-    cproto* {.importc: "cproto".}: uint8 ##  XXX: should move outside union
-    cfunc* {.importc: "cfunc".}: JSCFunctionType
+  JSCDeclareFuntion* {.bycopy.} = object
+    length*: uint8 ##  XXX: should move outside union
+    cproto*: JSCFunctionEnum ##  XXX: should move outside union
+    cfunc*: JSCFunctionType
 
-  INNER_C_STRUCT_nimterop_1493119302_607* {.importc: "no_name",
-      header: headerquickjs, bycopy.} = object
-    get* {.importc: "get".}: JSCFunctionType
-    set* {.importc: "set".}: JSCFunctionType
+  JSCDeclareSetGet* {.bycopy.} = object
+    get*: JSCFunctionType
+    set*: JSCFunctionType
 
-  INNER_C_STRUCT_nimterop_1493119302_611* {.importc: "no_name",
-      header: headerquickjs, bycopy.} = object
-    name* {.importc: "name".}: cstring
-    base* {.importc: "base".}: cint
+  JSCDeclareAlias* {.bycopy.} = object
+    name*: cstring
+    base*: cint
 
-  INNER_C_STRUCT_nimterop_1493119302_615* {.importc: "no_name",
-      header: headerquickjs, bycopy.} = object
-    tab* {.importc: "tab".}: ptr JSCFunctionListEntry
-    len* {.importc: "len".}: cint
+  JSCDeclarePropList* {.bycopy.} = object
+    tab*: ptr JSCFunctionListEntry
+    len*: cint
 
-  INNER_C_UNION_nimterop_1493119302_601* {.importc: "no_name",
-      header: headerquickjs, bycopy.} = object {.union.}
-    `func`* {.importc: "func".}: INNER_C_STRUCT_nimterop_1493119302_602
-    getset* {.importc: "getset".}: INNER_C_STRUCT_nimterop_1493119302_607
-    alias* {.importc: "alias".}: INNER_C_STRUCT_nimterop_1493119302_611
-    prop_list* {.importc: "prop_list".}: INNER_C_STRUCT_nimterop_1493119302_615
-    str* {.importc: "str".}: cstring
-    i32* {.importc: "i32".}: int32
-    i64* {.importc: "i64".}: int64
-    f64* {.importc: "f64".}: cdouble
+  JSCDeclareUnion* {.union.} = object
+    `func`*: JSCDeclareFuntion
+    getset*: JSCDeclareSetGet
+    alias*: JSCDeclareAlias
+    prop_list*: JSCDeclarePropList
+    str*: cstring
+    i32*: int32
+    i64*: int64
+    f64*: float64
 
-  JSCFunctionListEntry* {.importc: "JSCFunctionListEntry", header: headerquickjs,
-                         bycopy.} = object
-    name* {.importc: "name".}: cstring
-    prop_flags* {.importc: "prop_flags".}: uint8
-    def_type* {.importc: "def_type".}: uint8
-    magic* {.importc: "magic".}: int16
-    u* {.importc: "u".}: INNER_C_UNION_nimterop_1493119302_601
+  JSCFunctionListEntry* {.bycopy.} = object
+    name*: cstring
+    prop_flags*: uint8
+    def_type*: uint8
+    magic*: int16
+    u*: JSCDeclareUnion
 
 
 const
@@ -802,10 +800,10 @@ proc JS_SetPropertyFunctionList*(ctx: ptr JSContext; obj: JSValue;
 ##  C module definition
 
 type
-  JSModuleInitFunc* = proc (ctx: ptr JSContext; m: ptr JSModuleDef): cint
+  JSModuleInitFunc* = proc (ctx: ptr JSContext; m: ptr JSModuleDef): cint {.cdecl.}
 
 proc JS_NewCModule*(ctx: ptr JSContext; name_str: cstring;
-                   `func`: ptr JSModuleInitFunc): ptr JSModuleDef {.
+                   fn: JSModuleInitFunc): ptr JSModuleDef {.
     importc: "JS_NewCModule", header: headerquickjs.}
 ##  can only be called before the module is instantiated
 
