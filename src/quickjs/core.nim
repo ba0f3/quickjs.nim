@@ -1,11 +1,4 @@
-const headerquickjs = "quickjs/quickjs.h"
-
-{.passC: "-DCONFIG_VERSION=\"\"".}
-{.passL: "-lm -lpthread".}
-{.compile: "quickjs/quickjs.c".}
-{.compile: "quickjs/cutils.c".}
-{.compile: "quickjs/libregexp.c".}
-{.compile: "quickjs/libunicode.c".}
+import private/build_config
 ##
 ##  QuickJS Javascript Engine
 ##
@@ -78,7 +71,19 @@ type
 
 
 type
-  JSValue* = uint64
+  #JSValue* = uint64
+
+  JS_BOOL* = int
+  JSValueUnion* {.union.} = object
+    i32*: int32
+    f64*: float64
+    pt*: pointer
+
+  JSValue* = object
+    u*: JSValueUnion
+    tag*: int64
+  JSValueConst* = JSValue
+
 
 template JS_VALUE_GET_TAG*(v: untyped): untyped =
   (int)((v) shr 32)
@@ -199,18 +204,19 @@ type
   JSCFunctionData* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
                         argv: ptr JSValue; magic: cint; func_data: ptr JSValue): JSValue
   JSMallocState* {.importc: "JSMallocState", header: headerquickjs, bycopy.} = object
-    malloc_count* {.importc: "malloc_count".}: csize
-    malloc_size* {.importc: "malloc_size".}: csize
-    malloc_limit* {.importc: "malloc_limit".}: csize
+    malloc_count* {.importc: "malloc_count".}: csize_t
+    malloc_size* {.importc: "malloc_size".}: csize_t
+    malloc_limit* {.importc: "malloc_limit".}: csize_t
     opaque* {.importc: "opaque".}: pointer ##  user opaque
 
   JSMallocFunctions* {.importc: "JSMallocFunctions", header: headerquickjs, bycopy.} = object
-    js_malloc* {.importc: "js_malloc".}: proc (s: ptr JSMallocState; size: csize): pointer
+    js_malloc* {.importc: "js_malloc".}: proc (s: ptr JSMallocState; size: csize_t): pointer
     js_free* {.importc: "js_free".}: proc (s: ptr JSMallocState; `ptr`: pointer)
     js_realloc* {.importc: "js_realloc".}: proc (s: ptr JSMallocState; `ptr`: pointer;
-        size: csize): pointer
+        size: csize_t): pointer
     js_malloc_usable_size* {.importc: "js_malloc_usable_size".}: proc (
-        `ptr`: pointer): csize
+        `ptr`: pointer): csize_t
+
 
 
 proc JS_NewRuntime*(): ptr JSRuntime {.importc: "JS_NewRuntime", header: headerquickjs.}
@@ -218,9 +224,9 @@ proc JS_NewRuntime*(): ptr JSRuntime {.importc: "JS_NewRuntime", header: headerq
 
 proc JS_SetRuntimeInfo*(rt: ptr JSRuntime; info: cstring) {.
     importc: "JS_SetRuntimeInfo", header: headerquickjs.}
-proc JS_SetMemoryLimit*(rt: ptr JSRuntime; limit: csize) {.
+proc JS_SetMemoryLimit*(rt: ptr JSRuntime; limit: csize_t) {.
     importc: "JS_SetMemoryLimit", header: headerquickjs.}
-proc JS_SetGCThreshold*(rt: ptr JSRuntime; gc_threshold: csize) {.
+proc JS_SetGCThreshold*(rt: ptr JSRuntime; gc_threshold: csize_t) {.
     importc: "JS_SetGCThreshold", header: headerquickjs.}
 proc JS_NewRuntime2*(mf: ptr JSMallocFunctions; opaque: pointer): ptr JSRuntime {.
     importc: "JS_NewRuntime2", header: headerquickjs.}
@@ -246,7 +252,7 @@ proc JS_SetContextOpaque*(ctx: ptr JSContext; opaque: pointer) {.
     importc: "JS_SetContextOpaque", header: headerquickjs.}
 proc JS_GetRuntime*(ctx: ptr JSContext): ptr JSRuntime {.importc: "JS_GetRuntime",
     header: headerquickjs.}
-proc JS_SetMaxStackSize*(ctx: ptr JSContext; stack_size: csize) {.
+proc JS_SetMaxStackSize*(ctx: ptr JSContext; stack_size: csize_t) {.
     importc: "JS_SetMaxStackSize", header: headerquickjs.}
 proc JS_SetClassProto*(ctx: ptr JSContext; class_id: JSClassID; obj: JSValue) {.
     importc: "JS_SetClassProto", header: headerquickjs.}
@@ -282,31 +288,31 @@ proc JS_AddIntrinsicPromise*(ctx: ptr JSContext) {.
 proc js_string_codePointRange*(ctx: ptr JSContext; this_val: JSValue; argc: cint;
                               argv: ptr JSValue): JSValue {.
     importc: "js_string_codePointRange", header: headerquickjs.}
-proc js_malloc_rt*(rt: ptr JSRuntime; size: csize): pointer {.importc: "js_malloc_rt",
+proc js_malloc_rt*(rt: ptr JSRuntime; size: csize_t): pointer {.importc: "js_malloc_rt",
     header: headerquickjs.}
 proc js_free_rt*(rt: ptr JSRuntime; `ptr`: pointer) {.importc: "js_free_rt",
     header: headerquickjs.}
-proc js_realloc_rt*(rt: ptr JSRuntime; `ptr`: pointer; size: csize): pointer {.
+proc js_realloc_rt*(rt: ptr JSRuntime; `ptr`: pointer; size: csize_t): pointer {.
     importc: "js_realloc_rt", header: headerquickjs.}
-proc js_malloc_usable_size_rt*(rt: ptr JSRuntime; `ptr`: pointer): csize {.
+proc js_malloc_usable_size_rt*(rt: ptr JSRuntime; `ptr`: pointer): csize_t {.
     importc: "js_malloc_usable_size_rt", header: headerquickjs.}
-proc js_mallocz_rt*(rt: ptr JSRuntime; size: csize): pointer {.
+proc js_mallocz_rt*(rt: ptr JSRuntime; size: csize_t): pointer {.
     importc: "js_mallocz_rt", header: headerquickjs.}
-proc js_malloc*(ctx: ptr JSContext; size: csize): pointer {.importc: "js_malloc",
+proc js_malloc*(ctx: ptr JSContext; size: csize_t): pointer {.importc: "js_malloc",
     header: headerquickjs.}
 proc js_free*(ctx: ptr JSContext; `ptr`: pointer) {.importc: "js_free",
     header: headerquickjs.}
-proc js_realloc*(ctx: ptr JSContext; `ptr`: pointer; size: csize): pointer {.
+proc js_realloc*(ctx: ptr JSContext; `ptr`: pointer; size: csize_t): pointer {.
     importc: "js_realloc", header: headerquickjs.}
-proc js_malloc_usable_size*(ctx: ptr JSContext; `ptr`: pointer): csize {.
+proc js_malloc_usable_size*(ctx: ptr JSContext; `ptr`: pointer): csize_t {.
     importc: "js_malloc_usable_size", header: headerquickjs.}
-proc js_realloc2*(ctx: ptr JSContext; `ptr`: pointer; size: csize; pslack: ptr csize): pointer {.
+proc js_realloc2*(ctx: ptr JSContext; `ptr`: pointer; size: csize_t; pslack: ptr csize_t): pointer {.
     importc: "js_realloc2", header: headerquickjs.}
-proc js_mallocz*(ctx: ptr JSContext; size: csize): pointer {.importc: "js_mallocz",
+proc js_mallocz*(ctx: ptr JSContext; size: csize_t): pointer {.importc: "js_mallocz",
     header: headerquickjs.}
 proc js_strdup*(ctx: ptr JSContext; str: cstring): cstring {.importc: "js_strdup",
     header: headerquickjs.}
-proc js_strndup*(ctx: ptr JSContext; s: cstring; n: csize): cstring {.
+proc js_strndup*(ctx: ptr JSContext; s: cstring; n: csize_t): cstring {.
     importc: "js_strndup", header: headerquickjs.}
 type
   JSMemoryUsage* {.importc: "JSMemoryUsage", header: headerquickjs, bycopy.} = object
@@ -570,7 +576,7 @@ proc JS_SetPrototype*(ctx: ptr JSContext; obj: JSValue; proto_val: JSValue): cin
     importc: "JS_SetPrototype", header: headerquickjs.}
 proc JS_GetPrototype*(ctx: ptr JSContext; val: JSValue): JSValue {.
     importc: "JS_GetPrototype", header: headerquickjs.}
-proc JS_ParseJSON*(ctx: ptr JSContext; buf: cstring; buf_len: csize; filename: cstring): JSValue {.
+proc JS_ParseJSON*(ctx: ptr JSContext; buf: cstring; buf_len: csize_t; filename: cstring): JSValue {.
     importc: "JS_ParseJSON", header: headerquickjs.}
 proc JS_Call*(ctx: ptr JSContext; func_obj: JSValue; this_obj: JSValue; argc: cint;
              argv: ptr JSValue): JSValue {.importc: "JS_Call", header: headerquickjs.}
@@ -583,12 +589,12 @@ proc JS_CallConstructor*(ctx: ptr JSContext; func_obj: JSValue; argc: cint;
 proc JS_CallConstructor2*(ctx: ptr JSContext; func_obj: JSValue; new_target: JSValue;
                          argc: cint; argv: ptr JSValue): JSValue {.
     importc: "JS_CallConstructor2", header: headerquickjs.}
-proc JS_Eval*(ctx: ptr JSContext; input: cstring; input_len: csize; filename: cstring;
+proc JS_Eval*(ctx: ptr JSContext; input: cstring; input_len: csize_t; filename: cstring;
              eval_flags: cint): JSValue {.importc: "JS_Eval", header: headerquickjs.}
 const
   JS_EVAL_BINARY_LOAD_ONLY* = (1 shl 0) ##  only load the module
 
-proc JS_EvalBinary*(ctx: ptr JSContext; buf: ptr uint8; buf_len: csize; flags: cint): JSValue {.
+proc JS_EvalBinary*(ctx: ptr JSContext; buf: ptr uint8; buf_len: csize_t; flags: cint): JSValue {.
     importc: "JS_EvalBinary", header: headerquickjs.}
 proc JS_GetGlobalObject*(ctx: ptr JSContext): JSValue {.
     importc: "JS_GetGlobalObject", header: headerquickjs.}
@@ -618,15 +624,15 @@ proc JS_GetOpaque2*(ctx: ptr JSContext; obj: JSValue; class_id: JSClassID): poin
 type
   JSFreeArrayBufferDataFunc* = proc (rt: ptr JSRuntime; opaque: pointer; `ptr`: pointer): void
 
-proc JS_NewArrayBuffer*(ctx: ptr JSContext; buf: ptr uint8; len: csize;
+proc JS_NewArrayBuffer*(ctx: ptr JSContext; buf: ptr uint8; len: csize_t;
                        free_func: ptr JSFreeArrayBufferDataFunc; opaque: pointer;
                        is_shared: cint): JSValue {.importc: "JS_NewArrayBuffer",
     header: headerquickjs.}
-proc JS_NewArrayBufferCopy*(ctx: ptr JSContext; buf: ptr uint8; len: csize): JSValue {.
+proc JS_NewArrayBufferCopy*(ctx: ptr JSContext; buf: ptr uint8; len: csize_t): JSValue {.
     importc: "JS_NewArrayBufferCopy", header: headerquickjs.}
 proc JS_DetachArrayBuffer*(ctx: ptr JSContext; obj: JSValue) {.
     importc: "JS_DetachArrayBuffer", header: headerquickjs.}
-proc JS_GetArrayBuffer*(ctx: ptr JSContext; psize: ptr csize; obj: JSValue): ptr uint8 {.
+proc JS_GetArrayBuffer*(ctx: ptr JSContext; psize: ptr csize_t; obj: JSValue): ptr uint8 {.
     importc: "JS_GetArrayBuffer", header: headerquickjs.}
 ##  return != 0 if the JS code needs to be interrupted
 
@@ -674,13 +680,13 @@ const
   JS_WRITE_OBJ_BYTECODE* = (1 shl 0) ##  allow function/module
   JS_WRITE_OBJ_BSWAP* = (1 shl 1) ##  byte swapped output
 
-proc JS_WriteObject*(ctx: ptr JSContext; psize: ptr csize; obj: JSValue; flags: cint): ptr uint8 {.
+proc JS_WriteObject*(ctx: ptr JSContext; psize: ptr csize_t; obj: JSValue; flags: cint): ptr uint8 {.
     importc: "JS_WriteObject", header: headerquickjs.}
 const
   JS_READ_OBJ_BYTECODE* = (1 shl 0) ##  allow function/module
   JS_READ_OBJ_ROM_DATA* = (1 shl 1) ##  avoid duplicating 'buf' data
 
-proc JS_ReadObject*(ctx: ptr JSContext; buf: ptr uint8; buf_len: csize; flags: cint): JSValue {.
+proc JS_ReadObject*(ctx: ptr JSContext; buf: ptr uint8; buf_len: csize_t; flags: cint): JSValue {.
     importc: "JS_ReadObject", header: headerquickjs.}
 proc JS_EvalFunction*(ctx: ptr JSContext; fun_obj: JSValue; this_obj: JSValue): JSValue {.
     importc: "JS_EvalFunction", header: headerquickjs.}
