@@ -410,14 +410,14 @@ type
     set_property* {.importc: "set_property".}: proc (ctx: ptr JSContext; obj: JSValue;
         atom: JSAtom; value: JSValue; receiver: JSValue; flags: cint): cint
 
-  JSClassFinalizer* = proc (rt: ptr JSRuntime; val: JSValue): void
-  JSClassGCMark* = proc (rt: ptr JSRuntime; val: JSValue; mark_func: ptr JS_MarkFunc): void
+  JSClassFinalizer* = proc (rt: ptr JSRuntime; val: JSValue): void {.cdecl.}
+  JSClassGCMark* = proc (rt: ptr JSRuntime; val: JSValue; mark_func: ptr JS_MarkFunc): void {.cdecl.}
   JSClassCall* = proc (ctx: ptr JSContext; func_obj: JSValue; this_val: JSValue;
-                    argc: cint; argv: ptr JSValue): JSValue
+                    argc: cint; argv: ptr JSValue): JSValue {.cdecl.}
   JSClassDef* {.importc: "JSClassDef", header: headerquickjs, bycopy.} = object
     class_name* {.importc: "class_name".}: cstring
-    finalizer* {.importc: "finalizer".}: ptr JSClassFinalizer
-    gc_mark* {.importc: "gc_mark".}: ptr JSClassGCMark
+    finalizer* {.importc: "finalizer".}: JSClassFinalizer
+    gc_mark* {.importc: "gc_mark".}: JSClassGCMark
     call* {.importc: "call".}: ptr JSClassCall ##  XXX: suppress this indirection ? It is here only to save memory
                                           ##        because only a few classes need these methods
     exotic* {.importc: "exotic".}: ptr JSClassExoticMethods
@@ -710,22 +710,22 @@ type                          ##  XXX: should rename for namespace isolation
   JSCFunctionType* {.union.} = object
     generic*: JSCFunction
     generic_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue
+        this_val: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue {.cdecl.}
     constructor*: JSCFunction
     constructor_magic*: proc (ctx: ptr JSContext;
-        new_target: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue
+        new_target: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue {.cdecl.}
     constructor_or_func*: JSCFunction
-    f_f*: proc (a1: cdouble): cdouble
-    f_f_f*: proc (a1: cdouble; a2: cdouble): cdouble
-    getter*: proc (ctx: ptr JSContext; this_val: JSValue): JSValue
+    f_f*: proc (a1: cdouble): cdouble {.cdecl.}
+    f_f_f*: proc (a1: cdouble; a2: cdouble): cdouble {.cdecl.}
+    getter*: proc (ctx: ptr JSContext; this_val: JSValue): JSValue {.cdecl.}
     setter*: proc (ctx: ptr JSContext; this_val: JSValue;
-                                     val: JSValue): JSValue
+                                     val: JSValue): JSValue {.cdecl.}
     getter_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; magic: cint): JSValue
+        this_val: JSValue; magic: cint): JSValue {.cdecl.}
     setter_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; val: JSValue; magic: cint): JSValue
+        this_val: JSValue; val: JSValue; magic: cint): JSValue {.cdecl.}
     iterator_next*: proc (ctx: ptr JSContext;
-        this_val: JSValue; argc: cint; argv: ptr JSValue; pdone: ptr cint; magic: cint): JSValue
+        this_val: JSValue; argc: cint; argv: ptr JSValue; pdone: ptr cint; magic: cint): JSValue {.cdecl.}
 
 
 
@@ -753,8 +753,8 @@ type
     cfunc*: JSCFunctionType
 
   JSCDeclareSetGet* {.bycopy.} = object
-    get*: JSCFunctionType
-    set*: JSCFunctionType
+    fget*: JSCFunctionType
+    fset*: JSCFunctionType
 
   JSCDeclareAlias* {.bycopy.} = object
     name*: cstring
@@ -765,7 +765,7 @@ type
     len*: cint
 
   JSCDeclareUnion* {.union.} = object
-    `func`*: JSCDeclareFuntion
+    fn*: JSCDeclareFuntion
     getset*: JSCDeclareSetGet
     alias*: JSCDeclareAlias
     prop_list*: JSCDeclarePropList
@@ -774,25 +774,26 @@ type
     i64*: int64
     f64*: float64
 
+
+  JS_DEF_TYPE* = enum
+    JS_DEF_CFUNC = 0
+    JS_DEF_CGETSET = 1
+    JS_DEF_CGETSET_MAGIC = 2
+    JS_DEF_PROP_STRING = 3
+    JS_DEF_PROP_INT32 = 4
+    JS_DEF_PROP_INT64 = 5
+    JS_DEF_PROP_DOUBLE = 6
+    JS_DEF_PROP_UNDEFINED = 7
+    JS_DEF_OBJECT = 8
+    JS_DEF_ALIAS = 9
+
+
   JSCFunctionListEntry* {.bycopy.} = object
     name*: cstring
     prop_flags*: uint8
-    def_type*: uint8
+    def_type*: JS_DEF_TYPE
     magic*: int16
     u*: JSCDeclareUnion
-
-
-const
-  JS_DEF_CFUNC* = 0
-  JS_DEF_CGETSET* = 1
-  JS_DEF_CGETSET_MAGIC* = 2
-  JS_DEF_PROP_STRING* = 3
-  JS_DEF_PROP_INT32* = 4
-  JS_DEF_PROP_INT64* = 5
-  JS_DEF_PROP_DOUBLE* = 6
-  JS_DEF_PROP_UNDEFINED* = 7
-  JS_DEF_OBJECT* = 8
-  JS_DEF_ALIAS* = 9
 
 proc JS_SetPropertyFunctionList*(ctx: ptr JSContext; obj: JSValue;
                                 tab: ptr JSCFunctionListEntry; len: cint) {.

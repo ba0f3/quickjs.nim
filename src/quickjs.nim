@@ -1,5 +1,5 @@
-import os, quickjs/[core, libc]
-export core, libc
+import os, quickjs/[core, helpers, libc]
+export core, helpers, libc
 
 type
   Engine*  = object
@@ -10,22 +10,6 @@ proc `=destroy`*(e: var Engine) =
   JS_FreeContext(e.ctx)
   JS_FreeRuntime(e.rt)
 
-proc JS_CFUNC_DEF*(name: string, paramCount: uint8, fn1: JSCFunction): JSCFunctionListEntry =
-  result = JSCFunctionListEntry(
-    name: name,
-    prop_flags:  JS_PROP_WRITABLE or JS_PROP_CONFIGURABLE,
-    def_type: JS_DEF_CFUNC,
-    magic: 0,
-    u: JSCDeclareUnion(
-      `func`: JSCDeclareFuntion(
-        length: paramCount,
-        cproto: JS_CFUNC_generic,
-        cfunc: JSCFunctionType(
-          generic: fn1
-        )
-      )
-    )
-  )
 
 proc initCustomContext(rt: ptr JSRuntime): ptr JSContext {.cdecl.} =
   result = JS_NewContextRaw(rt)
@@ -36,11 +20,6 @@ proc initCustomContext(rt: ptr JSRuntime): ptr JSContext {.cdecl.} =
   else:
     raise newException(IOError, "failed to create new context")
 
-
-proc initModule(ctx: ptr JSContext, moduleName: string, fn: JSModuleInitFunc): ptr JSModuleDef =
-  result = JS_NewCModule(ctx, moduleName, fn)
-  if result != nil:
-    discard JS_AddModuleExport(ctx, result, moduleName)
 
 proc newEngine*(): Engine =
   result.rt = JS_NewRuntime()
@@ -75,12 +54,16 @@ proc evalFile*(e: Engine, filename: string, flags = JS_EVAL_TYPE_GLOBAL): int {.
   let input = readFile(filename)
   result = e.evalString(input, filename, flags)
 
-proc registerModule*(e: Engine, moduleName: string, init: JSModuleInitFunc, functions: openArray[JSCFunctionListEntry]) =
-  let m = initModule(e.ctx,  moduleName, init)
-  discard JS_AddModuleExportList(e.ctx, m, unsafeAddr functions[0], functions.len.cint)
-
+proc registerObject*(e: Engine, objectName: string, functions: openArray[JSCFunctionListEntry]): JSValue {.discardable.} =
+  result = JS_NewObject(e.ctx)
+  JS_SetPropertyFunctionList(e.ctx, result, unsafeAddr functions[0], functions.len.cint)
+  var global_obj = JS_GetGlobalObject(e.ctx);
+  discard JS_SetPropertyStr(e.ctx, global_obj, objectName, result)
+  JS_FreeValue(e.ctx, global_obj)
 
 proc registerFunction*(e: Engine, name: string, paramCount: int, fn: JSCFunction) =
-  var global_obj = JS_GetGlobalObject(e.ctx)
-  discard JS_SetPropertyStr(e.ctx, global_obj, name, JS_NewCFunction(e.ctx, fn, name, paramCount.cint))
+  let
+    global_obj = JS_GetGlobalObject(e.ctx)
+    fn = JS_NewCFunction(e.ctx, fn, name, paramCount.cint)
+  discard JS_SetPropertyStr(e.ctx, global_obj, name, fn)
   JS_FreeValue(e.ctx, global_obj)
