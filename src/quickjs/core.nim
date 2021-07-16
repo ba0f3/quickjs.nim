@@ -79,11 +79,14 @@ type
     f64*: float64
     pt*: pointer
 
-  JSValue* = object
+  JSValue*  {.importc, header: headerquickjs, bycopy.} = object
     u*: JSValueUnion
     tag*: int64
   JSValueConst* = JSValue
 
+const
+  TRUE* = 1.JS_BOOL
+  FALSE* = 0.JS_BOOL
 
 template JS_VALUE_GET_TAG*(v: untyped): untyped =
   (int)((v) shr 32)
@@ -688,7 +691,7 @@ const
 
 proc JS_ReadObject*(ctx: ptr JSContext; buf: ptr uint8; buf_len: csize_t; flags: cint): JSValue {.
     importc: "JS_ReadObject", header: headerquickjs.}
-proc JS_EvalFunction*(ctx: ptr JSContext; fun_obj: JSValue; this_obj: JSValue): JSValue {.
+proc JS_EvalFunction*(ctx: ptr JSContext; fun_obj: JSValue): JSValue {.
     importc: "JS_EvalFunction", header: headerquickjs.}
 ##  C function definition
 
