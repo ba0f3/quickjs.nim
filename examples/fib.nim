@@ -8,8 +8,6 @@ proc fib(n: int32): int32 =
   else:
     result = fib(n - 1) + fib(n - 2);
 
-
-
 proc js_fib(ctx: JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
   var n: int32
 

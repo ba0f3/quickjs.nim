@@ -3,8 +3,8 @@ export core, helpers, libc
 
 type
   Engine*  = object
-    ctx: JSContext
-    rt: JSRuntime
+    ctx*: JSContext
+    rt*: JSRuntime
 
 proc `=destroy`*(e: var Engine) =
   JS_FreeContext(e.ctx)
@@ -126,3 +126,4 @@ proc registerFunction*(e: Engine, name: string, paramCount: int, fn: JSCFunction
   let global_obj = JS_GetGlobalObject(e.ctx)
   e.registerFunction(global_obj, name, paramCount, fn)
   JS_FreeValue(e.ctx, global_obj)
+

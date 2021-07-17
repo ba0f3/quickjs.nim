@@ -308,9 +308,9 @@ proc JS_NewRuntime2*(mf: ptr JSMallocFunctions; opaque: pointer): JSRuntime {.
     importc, header: headerquickjs.}
 proc JS_FreeRuntime*(rt: JSRuntime) {.importc, header: headerquickjs.}
 type
-  JS_MarkFunc* = proc (rt: JSRuntime; val: JSValue): void
+  JS_MarkFunc* = proc (rt: JSRuntime; val: JSValue) {.cdecl.}
 
-proc JS_MarkValue*(rt: JSRuntime; val: JSValue; mark_func: ptr JS_MarkFunc) {.
+proc JS_MarkValue*(rt: JSRuntime; val: JSValue; mark_func: JS_MarkFunc) {.
     importc, header: headerquickjs.}
 proc JS_RunGC*(rt: JSRuntime) {.importc, header: headerquickjs.}
 proc JS_IsLiveObject*(rt: JSRuntime; obj: JSValue): int32 {.
@@ -437,47 +437,46 @@ type
     getter* {.importc: "getter".}: JSValue
     setter* {.importc: "setter".}: JSValue
 
-  JSClassExoticMethods* {.importc, header: headerquickjs,
-                         bycopy.} = object
-    get_own_property* {.importc: "get_own_property".}: proc (ctx: JSContext;
+  JSClassExoticMethods* {.bycopy.} = object
+    get_own_property*: proc (ctx: JSContext;
         desc: ptr JSPropertyDescriptor; obj: JSValue; prop: JSAtom): int32 ##  Return -1 if exception (can only happen in case of Proxy object),
                                                                   ##        FALSE if the property does not exists, TRUE if it exists. If 1 is
                                                                   ##        returned, the property descriptor 'desc' is filled if != NULL.
     ##  '*ptab' should hold the '*plen' property keys. Return 0 if OK,
     ##        -1 if exception. The 'is_enumerable' field is ignored.
     ##
-    get_own_property_names* {.importc: "get_own_property_names".}: proc (
+    get_own_property_names*: proc (
         ctx: JSContext; ptab: ptr ptr JSPropertyEnum; plen: ptr uint32; obj: JSValue): int32 ##  return < 0 if exception, or TRUE/FALSE
-    delete_property* {.importc: "delete_property".}: proc (ctx: JSContext;
+    delete_property*: proc (ctx: JSContext;
         obj: JSValue; prop: JSAtom): int32 ##  return < 0 if exception or TRUE/FALSE
-    define_own_property* {.importc: "define_own_property".}: proc (
+    define_own_property*: proc (
         ctx: JSContext; this_obj: JSValue; prop: JSAtom; val: JSValue;
         getter: JSValue; setter: JSValue; flags: int32): int32 ##  The following methods can be emulated with the previous ones,
                                                       ##        so they are usually not needed
                                                       ##  return < 0 if exception or TRUE/FALSE
-    has_property* {.importc: "has_property".}: proc (ctx: JSContext; obj: JSValue;
+    has_property*: proc (ctx: JSContext; obj: JSValue;
         atom: JSAtom): int32
-    get_property* {.importc: "get_property".}: proc (ctx: JSContext; obj: JSValue;
+    get_property*: proc (ctx: JSContext; obj: JSValue;
         atom: JSAtom; receiver: JSValue): JSValue ##  return < 0 if exception or TRUE/FALSE
-    set_property* {.importc: "set_property".}: proc (ctx: JSContext; obj: JSValue;
+    set_property*: proc (ctx: JSContext; obj: JSValue;
         atom: JSAtom; value: JSValue; receiver: JSValue; flags: int32): int32
 
-  JSClassFinalizer* = proc (rt: JSRuntime; val: JSValue): void {.cdecl.}
-  JSClassGCMark* = proc (rt: JSRuntime; val: JSValue; mark_func: ptr JS_MarkFunc): void {.cdecl.}
+  JSClassFinalizer* = proc (rt: JSRuntime; val: JSValue) {.cdecl.}
+  JSClassGCMark* = proc (rt: JSRuntime; val: JSValue; mark_func: JS_MarkFunc) {.cdecl.}
   JSClassCall* = proc (ctx: JSContext; func_obj: JSValue; this_val: JSValue;
                     argc: int32; argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.}
-  JSClassDef* {.importc, header: headerquickjs, bycopy.} = object
-    class_name* {.importc: "class_name".}: cstring
-    finalizer* {.importc: "finalizer".}: JSClassFinalizer
-    gc_mark* {.importc: "gc_mark".}: JSClassGCMark
-    call* {.importc: "call".}: JSClassCall ##  XXX: suppress this indirection ? It is here only to save memory
+  JSClassDef* {.bycopy.} = object
+    class_name*: cstring
+    finalizer*: JSClassFinalizer
+    gc_mark*: JSClassGCMark
+    call*: JSClassCall ##  XXX: suppress this indirection ? It is here only to save memory
                                           ##        because only a few classes need these methods
-    exotic* {.importc: "exotic".}: JSClassExoticMethods
+    exotic*: JSClassExoticMethods
 
-proc JS_NewClassID*(pclass_id: JSClassID): JSClassID {.importc, header: headerquickjs.}
-proc JS_NewClass*(rt: JSRuntime; class_id: JSClassID; class_def: JSClassDef): int32 {.
+proc JS_NewClassID*(pclass_id: ptr JSClassID): JSClassID {.importc, header: headerquickjs.}
+proc JS_NewClass*(rt: JSRuntime; class_id: JSClassID; class_def: ptr JSClassDef): int32 {.
     importc, header: headerquickjs.}
-proc JS_IsRegisteredClass*(rt: JSRuntime; class_id: JSClassID): int32 {.
+proc JS_IsRegisteredClass*(rt: JSRuntime; class_id: JSClassID): bool {.
     importc, header: headerquickjs.}
 ##  value handling
 
@@ -561,7 +560,7 @@ proc JS_ToCString*(ctx: JSContext; val1: JSValue): cstring {.
 proc JS_FreeCString*(ctx: JSContext; `ptr`: cstring) {.importc, header: headerquickjs.}
 proc JS_NewObjectProtoClass*(ctx: JSContext; proto: JSValue; class_id: JSClassID): JSValue {.
     importc, header: headerquickjs.}
-proc JS_NewObjectClass*(ctx: JSContext; class_id: int32): JSValue {.
+proc JS_NewObjectClass*(ctx: JSContext; class_id: JSClassID): JSValue {.
     importc, header: headerquickjs.}
 proc JS_NewObjectProto*(ctx: JSContext; proto: JSValue): JSValue {.
     importc, header: headerquickjs.}
@@ -718,16 +717,16 @@ proc JS_EvalFunction*(ctx: JSContext; fun_obj: JSValue): JSValue {.
     importc, header: headerquickjs.}
 
 ##  C function definition
-proc JS_NewCFunction2*(ctx: JSContext; `func`: JSCFunction; name: cstring;
+proc JS_NewCFunction2*(ctx: JSContext; fn: JSCFunction; name: cstring;
                       length: int32; cproto: JSCFunctionEnum; magic: int32): JSValue {.
     importc, header: headerquickjs.}
-proc JS_NewCFunctionData*(ctx: JSContext; `func`: ptr JSCFunctionData;
+proc JS_NewCFunctionData*(ctx: JSContext; fn: ptr JSCFunctionData;
                          length: int32; magic: int32; data_len: int32; data: ptr JSValue): JSValue {.
     importc, header: headerquickjs.}
-proc JS_NewCFunction*(ctx: JSContext; `func`: JSCFunction; name: cstring;
+proc JS_NewCFunction*(ctx: JSContext; fn: JSCFunction; name: cstring;
                      length: int32): JSValue {.importc, header: headerquickjs.}
 
-proc JS_NewCFunctionMagic*(ctx: JSContext; `func`: ptr JSCFunctionMagic;
+proc JS_NewCFunctionMagic*(ctx: JSContext; fn: ptr JSCFunctionMagic;
                           name: cstring; length: int32; cproto: JSCFunctionEnum;
                           magic: int32): JSValue {.importc, header: headerquickjs.}
 
@@ -741,19 +740,18 @@ type
   JSModuleInitFunc* = proc (ctx: JSContext; m: JSModuleDef): int32 {.cdecl.}
 
 proc JS_NewCModule*(ctx: JSContext; name_str: cstring;
-                   fn: JSModuleInitFunc): JSModuleDef {.
-    importc, header: headerquickjs.}
+                   fn: JSModuleInitFunc): JSModuleDef {.importc, header: headerquickjs.}
 ##  can only be called before the module is instantiated
 
-proc JS_AddModuleExport*(ctx: JSContext; m: JSModuleDef; name_str: cstring): int32 {.
-    importc, header: headerquickjs.}
+proc JS_AddModuleExport*(ctx: JSContext; m: JSModuleDef; name_str: cstring): int32 {.importc, header: headerquickjs.}
 proc JS_AddModuleExportList*(ctx: JSContext; m: JSModuleDef;
-                            tab: ptr JSCFunctionListEntry; len: int32): int32 {.
-    importc, header: headerquickjs.}
+                            tab: ptr JSCFunctionListEntry; len: int32): int32 {.importc, header: headerquickjs.}
 ##  can only be called after the module is instantiated
 
 proc JS_SetModuleExport*(ctx: JSContext; m: JSModuleDef; export_name: cstring;
                         val: JSValue): int32 {.importc, header: headerquickjs.}
 proc JS_SetModuleExportList*(ctx: JSContext; m: JSModuleDef;
-                            tab: ptr JSCFunctionListEntry; len: int32): int32 {.
-    importc, header: headerquickjs.}
+                            tab: ptr JSCFunctionListEntry; len: int32): int32 {.importc, header: headerquickjs.}
+
+
+proc JS_SetConstructor*(ctx: JSContext, func_obj: JSValueConst, proto: JSValueConst) {.importc, header: headerquickjs.}
