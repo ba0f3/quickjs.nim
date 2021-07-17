@@ -1,4 +1,6 @@
-# QuickJS4nim
+[![Build](https://github.com/ba0f3/quickjs.nim/actions/workflows/ci.yml/badge.svg)](https://github.com/ba0f3/quickjs.nim/actions/workflows/ci.yml)
+
+# quickjs.nim
 A Nim wrapper for https://bellard.org/quickjs/
 
 ## Warnings
