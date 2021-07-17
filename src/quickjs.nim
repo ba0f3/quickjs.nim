@@ -126,4 +126,3 @@ proc registerFunction*(e: Engine, name: string, paramCount: int, fn: JSCFunction
   let global_obj = JS_GetGlobalObject(e.ctx)
   e.registerFunction(global_obj, name, paramCount, fn)
   JS_FreeValue(e.ctx, global_obj)
-
