@@ -7,3 +7,11 @@ srcDir        = "src"
 
 # Dependencies
 requires "nim >= 0.19.2"
+
+task examples, "Compile and run examples":
+  withDir "examples":
+    exec "nim c -d:release --app:lib fib.nim"
+    exec "nim c -d:release --app:lib point.nim"
+    exec "nim c -d:release run_test.nim"
+    exec "./run_test test_fib.js"
+    exec "./run_test test_point.js"
