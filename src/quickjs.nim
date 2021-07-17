@@ -35,22 +35,20 @@ proc newEngine*(): Engine =
   js_std_init_handlers(result.rt)
   result.ctx = initCustomContext(result.rt)
 
-
-
-proc evalString*(e: Engine, input: string, filename="<input>", flags = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
+proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
   ## Evaluates Javascript code represented as a string
   let inputLen = input.len.csize_t
   var val: JSValue
 
   if (flags and JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE:
-    val = JS_Eval(e.ctx, input, inputLen, filename, (flags or JS_EVAL_FLAG_COMPILE_ONLY).cint)
-    if JS_IsException(val) == FALSE:
-      discard js_module_set_import_meta(e.ctx, val, TRUE, TRUE)
+    val = JS_Eval(e.ctx, input, inputLen, filename, flags or JS_EVAL_FLAG_COMPILE_ONLY)
+    if not JS_IsException(val):
+      discard js_module_set_import_meta(e.ctx, val, true, true)
       val = JS_EvalFunction(e.ctx, val)
   else:
-    val = JS_Eval(e.ctx, input, inputLen, filename, flags.cint)
+    val = JS_Eval(e.ctx, input, inputLen, filename, flags)
 
-  if JS_IsException(val) == TRUE:
+  if JS_IsException(val):
     js_std_dump_error(e.ctx)
     result = -1
   else:
@@ -58,7 +56,7 @@ proc evalString*(e: Engine, input: string, filename="<input>", flags = JS_EVAL_T
   js_std_loop(e.ctx)
   Js_FreeValue(e.ctx, val)
 
-proc evalFile*(e: Engine, filename: string, flags = JS_EVAL_TYPE_MODULE): int {.discardable.} =
+proc evalFile*(e: Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): int {.discardable.} =
   ## Reads `filename` and then evaluates Javascript code represented as a string
   if not filename.fileExists:
     raise newException(IOError, "file not found: " & filename)
@@ -67,7 +65,7 @@ proc evalFile*(e: Engine, filename: string, flags = JS_EVAL_TYPE_MODULE): int {.
 
 proc registerFunctionList*(e: Engine, val: JSValue, functions: openArray[JSCFunctionListEntry]) =
   ## Register function list for a Javascript value
-  JS_SetPropertyFunctionList(e.ctx, val, unsafeAddr functions[0], functions.len.cint)
+  JS_SetPropertyFunctionList(e.ctx, val, unsafeAddr functions[0], functions.len.int32)
 
 proc registerObject*(e: Engine, objectName: string, functions: openArray[JSCFunctionListEntry]): JSValue {.discardable.} =
   ## Register global object with function list
@@ -77,7 +75,7 @@ proc registerObject*(e: Engine, objectName: string, functions: openArray[JSCFunc
   discard JS_SetPropertyStr(e.ctx, global_obj, objectName, result)
   JS_FreeValue(e.ctx, global_obj)
 
-proc createValue*[T](e: Engine, value: T, flags: cint = JS_PROP_C_W_E): JSValue {.discardable.} =
+proc createValue*[T](e: Engine, value: T, flags: int32 = JS_PROP_C_W_E): JSValue {.discardable.} =
   ## Create Javascript value from Nim types
   when T is object:
     result = JS_NewObject(e.ctx)
@@ -102,17 +100,17 @@ proc createValue*[T](e: Engine, value: T, flags: cint = JS_PROP_C_W_E): JSValue 
   elif T is SomeFloat:
     result = JS_NewFloat64(e.ctx, value)
   elif T is bool:
-    result = JS_NewBool(e.ctx, value.cint)
+    result = JS_NewBool(e.ctx, value.int32)
   elif T is string or T is cstring:
     result = JS_NewString(e.ctx, value.cstring)
   else:
     {.error: "createValue error: type not supported".}
 
-proc registerValue*(e: Engine, parent: JSValue, name: string, val: JSValue, flags: cint = JS_PROP_C_W_E): int {.discardable.} =
+proc registerValue*(e: Engine, parent: JSValue, name: string, val: JSValue, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
   ## Register a Javascript value as child of `parent`
   result = JS_DefinePropertyValueStr(e.ctx, parent, name, val, flags).int
 
-proc registerValue*(e: Engine, name: string, val: JSValue, flags: cint = JS_PROP_C_W_E): int {.discardable.} =
+proc registerValue*(e: Engine, name: string, val: JSValue, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
   ## Register a global Javascript value
   let global_obj = JS_GetGlobalObject(e.ctx)
   result = e.registerValue(global_obj, name, val, flags)
@@ -120,7 +118,7 @@ proc registerValue*(e: Engine, name: string, val: JSValue, flags: cint = JS_PROP
 
 proc registerFunction*(e: Engine, parent: JSValue, name: string, paramCount: int, fn: JSCFunction) =
   ## Register a Nim fuction with `name` so Javascript can calls it
-  let fn = JS_NewCFunction(e.ctx, fn, name, paramCount.cint)
+  let fn = JS_NewCFunction(e.ctx, fn, name, paramCount.int32)
   discard JS_SetPropertyStr(e.ctx, parent, name, fn)
 
 proc registerFunction*(e: Engine, name: string, paramCount: int, fn: JSCFunction) =

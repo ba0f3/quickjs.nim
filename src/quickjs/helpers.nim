@@ -12,7 +12,7 @@ proc JS_CFUNC_DEF*(name: string, length: uint8, fn1: JSCFunction): JSCFunctionLi
         cfunc: JSCFunctionType(generic: fn1)
   )))
 
-proc JS_CFUNC_MAGIC_DEF*(name: string, length: uint8, fn1:  proc (ctx: ptr JSContext; this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}, magic: int16): JSCFunctionListEntry {.inline.} =
+proc JS_CFUNC_MAGIC_DEF*(name: string, length: uint8, fn1:  proc (ctx: ptr JSContext; this_val: JSValue; argc: int32; argv: ptr UncheckedArray[JSValue]; magic: int32): JSValue {.cdecl.}, magic: int16): JSCFunctionListEntry {.inline.} =
   result = JSCFunctionListEntry(
     name: name,
     prop_flags: JS_PROP_WRITABLE or JS_PROP_CONFIGURABLE,
@@ -27,7 +27,7 @@ proc JS_CFUNC_MAGIC_DEF*(name: string, length: uint8, fn1:  proc (ctx: ptr JSCon
 
 #proc JS_CFUNC_SPECIAL_DEF*(name: string, length: uint8, cproto, func1) { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, 0, .u = { .func = { length, JS_CFUNC_ ## cproto, { .cproto = func1 } } } }
 
-proc JS_ITERATOR_NEXT_DEF*(name: string, length: uint8, fn1: proc (ctx: ptr JSContext; this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; pdone: ptr cint; magic: cint): JSValue {.cdecl.}, magic: int16): JSCFunctionListEntry {.inline.} =
+proc JS_ITERATOR_NEXT_DEF*(name: string, length: uint8, fn1: proc (ctx: ptr JSContext; this_val: JSValue; argc: int32; argv: ptr UncheckedArray[JSValue]; pdone: ptr int32; magic: int32): JSValue {.cdecl.}, magic: int16): JSCFunctionListEntry {.inline.} =
   result = JSCFunctionListEntry(
     name: name,
     prop_flags: JS_PROP_WRITABLE or JS_PROP_CONFIGURABLE,
@@ -50,7 +50,7 @@ proc JS_CGETSET_DEF*(name: string, fgetter: proc (ctx: ptr JSContext; this_val: 
   result.u.getset.fget.getter = fgetter
   result.u.getset.fset.setter = fsetter
 
-proc JS_CGETSET_MAGIC_DEF*(name: string, fgetter: proc (ctx: ptr JSContext; this_val: JSValue, magic: cint): JSValue {.cdecl.}, fsetter: proc (ctx: ptr JSContext; this_val: JSValue; val: JSValue, magic: cint): JSValue {.cdecl.}, magic: int16): JSCFunctionListEntry {.inline.} =
+proc JS_CGETSET_MAGIC_DEF*(name: string, fgetter: proc (ctx: ptr JSContext; this_val: JSValue, magic: int32): JSValue {.cdecl.}, fsetter: proc (ctx: ptr JSContext; this_val: JSValue; val: JSValue, magic: int32): JSValue {.cdecl.}, magic: int16): JSCFunctionListEntry {.inline.} =
   result = JSCFunctionListEntry(
     name: name,
     prop_flags: JS_PROP_CONFIGURABLE,
@@ -106,7 +106,7 @@ proc JS_PROP_UNDEFINED_DEF*(name: string, prop_flags: uint8): JSCFunctionListEnt
     u: JSCDeclareUnion(i32: 0)
   )
 
-proc JS_OBJECT_DEF*(name: string, tab: ptr JSCFunctionListEntry, len: cint, prop_flags: uint8): JSCFunctionListEntry {.inline.} =
+proc JS_OBJECT_DEF*(name: string, tab: ptr JSCFunctionListEntry, len: int32, prop_flags: uint8): JSCFunctionListEntry {.inline.} =
   result = JSCFunctionListEntry(
     name: name,
     prop_flags: prop_flags,
@@ -132,7 +132,7 @@ proc JS_ALIAS_DEF*(name: string, `from`: cstring): JSCFunctionListEntry {.inline
       ))
   )
 
-proc JS_ALIAS_BASE_DEF*(name: string, `from`: cstring, base: cint): JSCFunctionListEntry {.inline.} =
+proc JS_ALIAS_BASE_DEF*(name: string, `from`: cstring, base: int32): JSCFunctionListEntry {.inline.} =
   result = JSCFunctionListEntry(
     name: name,
     prop_flags: JS_PROP_WRITABLE or JS_PROP_CONFIGURABLE,
