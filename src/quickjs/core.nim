@@ -77,7 +77,7 @@ type
   JSValueUnion* {.union.} = object
     i32*: int32
     f64*: float64
-    pt*: pointer
+    pt* {.importc: "ptr".}: pointer
 
   JSValue*  {.importc, header: headerquickjs, bycopy.} = object
     u*: JSValueUnion
@@ -201,11 +201,11 @@ const
 
 type
   JSCFunction* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                    argv: ptr JSValue): JSValue {.cdecl.}
+                    argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.}
   JSCFunctionMagic* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                         argv: ptr JSValue; magic: cint): JSValue
+                         argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue
   JSCFunctionData* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                        argv: ptr JSValue; magic: cint; func_data: ptr JSValue): JSValue
+                        argv: ptr UncheckedArray[JSValue]; magic: cint; func_data: ptr JSValue): JSValue
   JSMallocState* {.importc: "JSMallocState", header: headerquickjs, bycopy.} = object
     malloc_count* {.importc: "malloc_count".}: csize_t
     malloc_size* {.importc: "malloc_size".}: csize_t
@@ -289,7 +289,7 @@ proc JS_AddIntrinsicTypedArrays*(ctx: ptr JSContext) {.
 proc JS_AddIntrinsicPromise*(ctx: ptr JSContext) {.
     importc: "JS_AddIntrinsicPromise", header: headerquickjs.}
 proc js_string_codePointRange*(ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                              argv: ptr JSValue): JSValue {.
+                              argv: ptr UncheckedArray[JSValue]): JSValue {.
     importc: "js_string_codePointRange", header: headerquickjs.}
 proc js_malloc_rt*(rt: ptr JSRuntime; size: csize_t): pointer {.importc: "js_malloc_rt",
     header: headerquickjs.}
@@ -413,7 +413,7 @@ type
   JSClassFinalizer* = proc (rt: ptr JSRuntime; val: JSValue): void {.cdecl.}
   JSClassGCMark* = proc (rt: ptr JSRuntime; val: JSValue; mark_func: ptr JS_MarkFunc): void {.cdecl.}
   JSClassCall* = proc (ctx: ptr JSContext; func_obj: JSValue; this_val: JSValue;
-                    argc: cint; argv: ptr JSValue): JSValue {.cdecl.}
+                    argc: cint; argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.}
   JSClassDef* {.importc: "JSClassDef", header: headerquickjs, bycopy.} = object
     class_name* {.importc: "class_name".}: cstring
     finalizer* {.importc: "finalizer".}: JSClassFinalizer
@@ -582,15 +582,15 @@ proc JS_GetPrototype*(ctx: ptr JSContext; val: JSValue): JSValue {.
 proc JS_ParseJSON*(ctx: ptr JSContext; buf: cstring; buf_len: csize_t; filename: cstring): JSValue {.
     importc: "JS_ParseJSON", header: headerquickjs.}
 proc JS_Call*(ctx: ptr JSContext; func_obj: JSValue; this_obj: JSValue; argc: cint;
-             argv: ptr JSValue): JSValue {.importc: "JS_Call", header: headerquickjs.}
+             argv: ptr UncheckedArray[JSValue]): JSValue {.importc: "JS_Call", header: headerquickjs.}
 proc JS_Invoke*(ctx: ptr JSContext; this_val: JSValue; atom: JSAtom; argc: cint;
-               argv: ptr JSValue): JSValue {.importc: "JS_Invoke",
+               argv: ptr UncheckedArray[JSValue]): JSValue {.importc: "JS_Invoke",
     header: headerquickjs.}
 proc JS_CallConstructor*(ctx: ptr JSContext; func_obj: JSValue; argc: cint;
-                        argv: ptr JSValue): JSValue {.importc: "JS_CallConstructor",
+                        argv: ptr UncheckedArray[JSValue]): JSValue {.importc: "JS_CallConstructor",
     header: headerquickjs.}
 proc JS_CallConstructor2*(ctx: ptr JSContext; func_obj: JSValue; new_target: JSValue;
-                         argc: cint; argv: ptr JSValue): JSValue {.
+                         argc: cint; argv: ptr UncheckedArray[JSValue]): JSValue {.
     importc: "JS_CallConstructor2", header: headerquickjs.}
 proc JS_EvalObject*(ctx: ptr JSContext; this: JSValueConst, val: JSValueConst;
               flags: cint; scope_idx: cint): JSValue {.importc: "JS_EvalObject", header: headerquickjs.}
@@ -673,10 +673,10 @@ proc JS_SetModuleLoaderFunc*(rt: ptr JSRuntime;
 ##  JS Job support
 
 type
-  JSJobFunc* = proc (ctx: ptr JSContext; argc: cint; argv: ptr JSValue): JSValue
+  JSJobFunc* = proc (ctx: ptr JSContext; argc: cint; argv: ptr UncheckedArray[JSValue]): JSValue
 
 proc JS_EnqueueJob*(ctx: ptr JSContext; job_func: ptr JSJobFunc; argc: cint;
-                   argv: ptr JSValue): cint {.importc: "JS_EnqueueJob",
+                   argv: ptr UncheckedArray[JSValue]): cint {.importc: "JS_EnqueueJob",
     header: headerquickjs.}
 proc JS_IsJobPending*(rt: ptr JSRuntime): cint {.importc: "JS_IsJobPending",
     header: headerquickjs.}
@@ -710,10 +710,10 @@ type                          ##  XXX: should rename for namespace isolation
   JSCFunctionType* {.union.} = object
     generic*: JSCFunction
     generic_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue {.cdecl.}
+        this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}
     constructor*: JSCFunction
     constructor_magic*: proc (ctx: ptr JSContext;
-        new_target: JSValue; argc: cint; argv: ptr JSValue; magic: cint): JSValue {.cdecl.}
+        new_target: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}
     constructor_or_func*: JSCFunction
     f_f*: proc (a1: cdouble): cdouble {.cdecl.}
     f_f_f*: proc (a1: cdouble; a2: cdouble): cdouble {.cdecl.}
@@ -725,7 +725,7 @@ type                          ##  XXX: should rename for namespace isolation
     setter_magic*: proc (ctx: ptr JSContext;
         this_val: JSValue; val: JSValue; magic: cint): JSValue {.cdecl.}
     iterator_next*: proc (ctx: ptr JSContext;
-        this_val: JSValue; argc: cint; argv: ptr JSValue; pdone: ptr cint; magic: cint): JSValue {.cdecl.}
+        this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; pdone: ptr cint; magic: cint): JSValue {.cdecl.}
 
 
 
