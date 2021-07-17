@@ -1,7 +1,7 @@
 import quickjs
 
 
-proc hello(ctx: ptr JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
+proc hello(ctx: JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
   echo "Hello world, greating from Nim!"
 
 

@@ -10,7 +10,7 @@ proc fib(n: int32): int32 =
 
 
 
-proc js_fib(ctx: ptr JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
+proc js_fib(ctx: JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
   var n: int32
 
   if JS_ToInt32(ctx, addr n, argv[0]) != 0:
@@ -21,11 +21,11 @@ let js_fib_funcs = [
   JS_CFUNC_DEF("fib", 1, js_fib)
 ]
 
-proc js_fib_init(ctx: ptr JSContext, m: ptr JSModuleDef): cint {.cdecl.} =
+proc js_fib_init(ctx: JSContext, m: JSModuleDef): cint {.cdecl.} =
   JS_SetModuleExportList(ctx, m, unsafeAddr js_fib_funcs[0], js_fib_funcs.len.cint)
 
 
-proc js_init_module*(ctx: ptr JSContext, moduleName: cstring): ptr JSModuleDef {.exportc, dynlib.} =
+proc js_init_module*(ctx: JSContext, moduleName: cstring): JSModuleDef {.exportc, dynlib.} =
   result = JS_NewCModule(ctx, module_name, js_fib_init);
   if result != nil:
     discard JS_AddModuleExportList(ctx, result, unsafeAddr js_fib_funcs[0], js_fib_funcs.len.cint);

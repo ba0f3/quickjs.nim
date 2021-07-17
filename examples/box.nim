@@ -20,7 +20,7 @@ var box = Box(
   contains: [1, 2, 3]
 )
 
-proc box_area(ctx: ptr JSContext, this: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
+proc box_area(ctx: JSContext, this: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
   assert this.tag == JS_TAG_OBJECT
   var width, height: int64
   discard JS_ToInt64(ctx, addr width, JS_GetPropertyStr(ctx, this, "width"))

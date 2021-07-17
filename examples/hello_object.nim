@@ -1,7 +1,7 @@
 import quickjs
 
 
-proc hello_greating(ctx: ptr JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
+proc hello_greating(ctx: JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
   let name = JS_ToCString(ctx, argv[0])
   echo "Hello world, greating from ", name
 

@@ -3,15 +3,15 @@ export core, helpers, libc
 
 type
   Engine*  = object
-    ctx: ptr JSContext
-    rt: ptr JSRuntime
+    ctx: JSContext
+    rt: JSRuntime
 
 proc `=destroy`*(e: var Engine) =
   JS_FreeContext(e.ctx)
   JS_FreeRuntime(e.rt)
 
 
-proc initCustomContext(rt: ptr JSRuntime): ptr JSContext {.cdecl.} =
+proc initCustomContext(rt: JSRuntime): JSContext {.cdecl.} =
   result = JS_NewContextRaw(rt)
   if result != nil:
     JS_AddIntrinsicEval(result)
