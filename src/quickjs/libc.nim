@@ -23,8 +23,7 @@ proc js_module_set_import_meta*(ctx: ptr JSContext, func_val: JSValueConst,
     use_realpath: JS_BOOL, is_main: JS_BOOL): int {.importc: "js_module_set_import_meta",
     header: headerquickjs.}
 proc js_module_loader*(ctx: ptr JSContext, module_name: cstring,
-    opaque: pointer): ptr JSModuleDef {.importc: "js_module_loader",
-    header: headerquickjs.}
+    opaque: pointer): ptr JSModuleDef {.importc, cdecl.}
 proc js_std_eval_binary*(ctx: ptr JSContext, buf: ptr uint8, buf_len: cuint,
     flags: cint) {.importc: "js_std_eval_binary", header: headerquickjs.}
 proc js_std_promise_rejection_tracker*(ctx: ptr JSContext, promise: JSValueConst,

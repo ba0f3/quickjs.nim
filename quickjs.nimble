@@ -1,7 +1,7 @@
 # Package
 version     = "0.0.2"
-author      = "ImVexed"
-description = "QuickJS wrapper for Nim"
+author      = "ba0f3"
+description = "High level QuickJS wrapper for Nim"
 license     = "MIT"
 srcDir        = "src"
 

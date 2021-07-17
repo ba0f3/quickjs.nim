@@ -18,7 +18,12 @@ proc initCustomContext(rt: ptr JSRuntime): ptr JSContext {.cdecl.} =
     JS_AddIntrinsicBaseObjects(result)
     JS_AddIntrinsicDate(result)
     JS_AddIntrinsicJSON(result)
+
     js_std_add_helpers(result, 0, nil)
+    discard js_init_module_std(result, "std")
+    discard js_init_module_os(result, "os")
+
+    JS_SetModuleLoaderFunc(rt, nil, js_module_loader, nil)
   else:
     raise newException(IOError, "failed to create new context")
 
@@ -31,20 +36,21 @@ proc newEngine*(): Engine =
   result.ctx = initCustomContext(result.rt)
 
 
-proc evalString*(e: Engine, input: string, filename="<input>", flags = JS_EVAL_TYPE_GLOBAL): int  {.discardable.} =
+
+proc evalString*(e: Engine, input: string, filename="<input>", flags = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
   ## Evaluates Javascript code represented as a string
   let inputLen = input.len.csize_t
   var val: JSValue
 
   if (flags and JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE:
     val = JS_Eval(e.ctx, input, inputLen, filename, (flags or JS_EVAL_FLAG_COMPILE_ONLY).cint)
-    if JS_IsException(val) == 0:
+    if JS_IsException(val) == FALSE:
       discard js_module_set_import_meta(e.ctx, val, TRUE, TRUE)
       val = JS_EvalFunction(e.ctx, val)
   else:
     val = JS_Eval(e.ctx, input, inputLen, filename, flags.cint)
 
-  if JS_IsException(val) != 0:
+  if JS_IsException(val) == TRUE:
     js_std_dump_error(e.ctx)
     result = -1
   else:
@@ -52,7 +58,7 @@ proc evalString*(e: Engine, input: string, filename="<input>", flags = JS_EVAL_T
   js_std_loop(e.ctx)
   Js_FreeValue(e.ctx, val)
 
-proc evalFile*(e: Engine, filename: string, flags = JS_EVAL_TYPE_GLOBAL): int {.discardable.} =
+proc evalFile*(e: Engine, filename: string, flags = JS_EVAL_TYPE_MODULE): int {.discardable.} =
   ## Reads `filename` and then evaluates Javascript code represented as a string
   if not filename.fileExists:
     raise newException(IOError, "file not found: " & filename)

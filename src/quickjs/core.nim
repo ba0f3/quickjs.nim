@@ -66,13 +66,6 @@ const                         ##  all tags with a reference count are negative
   JS_TAG_FLOAT64* = 7           ##  any larger tag is FLOAT64 if JS_NAN_BOXING
 
 type
-  JSRefCountHeader* {.importc: "JSRefCountHeader", header: headerquickjs, bycopy.} = object
-    ref_count* {.importc: "ref_count".}: cint
-
-
-type
-  #JSValue* = uint64
-
   JS_BOOL* = int
   JSValueUnion* {.union.} = object
     i32*: int32
@@ -83,6 +76,116 @@ type
     u*: JSValueUnion
     tag*: int64
   JSValueConst* = JSValue
+
+
+type
+  JSCFunction* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
+                    argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.}
+  JSCFunctionMagic* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
+                         argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue
+  JSCFunctionData* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
+                        argv: ptr UncheckedArray[JSValue]; magic: cint; func_data: ptr JSValue): JSValue
+  JSMallocState* {.importc: "JSMallocState", header: headerquickjs, bycopy.} = object
+    malloc_count* {.importc: "malloc_count".}: csize_t
+    malloc_size* {.importc: "malloc_size".}: csize_t
+    malloc_limit* {.importc: "malloc_limit".}: csize_t
+    opaque* {.importc: "opaque".}: pointer ##  user opaque
+
+  JSMallocFunctions* {.importc: "JSMallocFunctions", header: headerquickjs, bycopy.} = object
+    js_malloc* {.importc: "js_malloc".}: proc (s: ptr JSMallocState; size: csize_t): pointer
+    js_free* {.importc: "js_free".}: proc (s: ptr JSMallocState; `ptr`: pointer)
+    js_realloc* {.importc: "js_realloc".}: proc (s: ptr JSMallocState; `ptr`: pointer;
+        size: csize_t): pointer
+    js_malloc_usable_size* {.importc: "js_malloc_usable_size".}: proc (
+        `ptr`: pointer): csize_t
+
+
+
+
+type                          ##  XXX: should rename for namespace isolation
+  JSCFunctionEnum* {.size: sizeof(cint).} = enum
+    JS_CFUNC_generic, JS_CFUNC_generic_magic, JS_CFUNC_constructor,
+    JS_CFUNC_constructor_magic, JS_CFUNC_constructor_or_func,
+    JS_CFUNC_constructor_or_func_magic, JS_CFUNC_f_f, JS_CFUNC_f_f_f,
+    JS_CFUNC_getter, JS_CFUNC_setter, JS_CFUNC_getter_magic, JS_CFUNC_setter_magic,
+    JS_CFUNC_iterator_next
+  JSCFunctionType* {.union.} = object
+    generic*: JSCFunction
+    generic_magic*: proc (ctx: ptr JSContext;
+        this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}
+    constructor*: JSCFunction
+    constructor_magic*: proc (ctx: ptr JSContext;
+        new_target: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}
+    constructor_or_func*: JSCFunction
+    f_f*: proc (a1: cdouble): cdouble {.cdecl.}
+    f_f_f*: proc (a1: cdouble; a2: cdouble): cdouble {.cdecl.}
+    getter*: proc (ctx: ptr JSContext; this_val: JSValue): JSValue {.cdecl.}
+    setter*: proc (ctx: ptr JSContext; this_val: JSValue;
+                                     val: JSValue): JSValue {.cdecl.}
+    getter_magic*: proc (ctx: ptr JSContext;
+        this_val: JSValue; magic: cint): JSValue {.cdecl.}
+    setter_magic*: proc (ctx: ptr JSContext;
+        this_val: JSValue; val: JSValue; magic: cint): JSValue {.cdecl.}
+    iterator_next*: proc (ctx: ptr JSContext;
+        this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; pdone: ptr cint; magic: cint): JSValue {.cdecl.}
+
+
+
+
+type
+  JSCDeclareFuntion* {.bycopy.} = object
+    length*: uint8 ##  XXX: should move outside union
+    cproto*: JSCFunctionEnum ##  XXX: should move outside union
+    cfunc*: JSCFunctionType
+
+  JSCDeclareSetGet* {.bycopy.} = object
+    fget*: JSCFunctionType
+    fset*: JSCFunctionType
+
+  JSCDeclareAlias* {.bycopy.} = object
+    name*: cstring
+    base*: cint
+
+  JSCDeclarePropList* {.bycopy.} = object
+    tab*: ptr JSCFunctionListEntry
+    len*: cint
+
+  JSCDeclareUnion* {.union.} = object
+    fn*: JSCDeclareFuntion
+    getset*: JSCDeclareSetGet
+    alias*: JSCDeclareAlias
+    prop_list*: JSCDeclarePropList
+    str*: cstring
+    i32*: int32
+    i64*: int64
+    f64*: float64
+
+
+  JS_DEF_TYPE* = enum
+    JS_DEF_CFUNC = 0
+    JS_DEF_CGETSET = 1
+    JS_DEF_CGETSET_MAGIC = 2
+    JS_DEF_PROP_STRING = 3
+    JS_DEF_PROP_INT32 = 4
+    JS_DEF_PROP_INT64 = 5
+    JS_DEF_PROP_DOUBLE = 6
+    JS_DEF_PROP_UNDEFINED = 7
+    JS_DEF_OBJECT = 8
+    JS_DEF_ALIAS = 9
+
+
+  JSCFunctionListEntry* {.bycopy.} = object
+    name*: cstring
+    prop_flags*: uint8
+    def_type*: JS_DEF_TYPE
+    magic*: int16
+    u*: JSCDeclareUnion
+
+
+
+type
+  JSRefCountHeader* {.importc: "JSRefCountHeader", header: headerquickjs, bycopy.} = object
+    ref_count* {.importc: "ref_count".}: cint
 
 const
   TRUE* = 1.JS_BOOL
@@ -100,8 +203,13 @@ template JS_VALUE_GET_BOOL*(v: untyped): untyped =
 template JS_VALUE_GET_PTR*(v: untyped): untyped =
   cast[pointer]((ptr int)(v))
 
-template JS_MKVAL*(tag, val: untyped): untyped =
-  (((uint64)(tag) shl 32) or (uint32)(val))
+proc JS_MKVAL*(tag: int64, val: int32): JSValue =
+  JSValue(
+    u: JSValueUnion(
+      i32: val
+    ),
+    tag: tag
+  )
 
 template JS_MKPTR*(tag, `ptr`: untyped): untyped =
   (((uint64)(tag) shl 32) or (ptr uint)(`ptr`))
@@ -198,29 +306,6 @@ const
   JS_EVAL_FLAG_STRICT* = (1 shl 3) ##  force 'strict' mode
   JS_EVAL_FLAG_STRIP* = (1 shl 4) ##  force 'strip' mode
   JS_EVAL_FLAG_COMPILE_ONLY* = (1 shl 5) ##  internal use
-
-type
-  JSCFunction* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                    argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.}
-  JSCFunctionMagic* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                         argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue
-  JSCFunctionData* = proc (ctx: ptr JSContext; this_val: JSValue; argc: cint;
-                        argv: ptr UncheckedArray[JSValue]; magic: cint; func_data: ptr JSValue): JSValue
-  JSMallocState* {.importc: "JSMallocState", header: headerquickjs, bycopy.} = object
-    malloc_count* {.importc: "malloc_count".}: csize_t
-    malloc_size* {.importc: "malloc_size".}: csize_t
-    malloc_limit* {.importc: "malloc_limit".}: csize_t
-    opaque* {.importc: "opaque".}: pointer ##  user opaque
-
-  JSMallocFunctions* {.importc: "JSMallocFunctions", header: headerquickjs, bycopy.} = object
-    js_malloc* {.importc: "js_malloc".}: proc (s: ptr JSMallocState; size: csize_t): pointer
-    js_free* {.importc: "js_free".}: proc (s: ptr JSMallocState; `ptr`: pointer)
-    js_realloc* {.importc: "js_realloc".}: proc (s: ptr JSMallocState; `ptr`: pointer;
-        size: csize_t): pointer
-    js_malloc_usable_size* {.importc: "js_malloc_usable_size".}: proc (
-        `ptr`: pointer): csize_t
-
-
 
 proc JS_NewRuntime*(): ptr JSRuntime {.importc: "JS_NewRuntime", header: headerquickjs.}
 ##  info lifetime must exceed that of rt
@@ -445,36 +530,36 @@ proc JS_NewInt64*(ctx: ptr JSContext; v: int64): JSValue {.importc: "JS_NewInt64
 proc JS_NewFloat64*(ctx: ptr JSContext; d: cdouble): JSValue {.
     importc: "JS_NewFloat64", header: headerquickjs.}
 
-proc JS_IsNumber*(v: JSValue): cint {.importc: "JS_IsNumber", header: headerquickjs.}
-proc JS_IsInteger*(v: JSValue): cint {.importc: "JS_IsInteger", header: headerquickjs.}
+proc JS_IsNumber*(v: JSValue): JS_BOOL {.importc: "JS_IsNumber", header: headerquickjs.}
+proc JS_IsInteger*(v: JSValue): JS_BOOL {.importc: "JS_IsInteger", header: headerquickjs.}
 
-proc JS_IsBigFloat*(v: JSValue): cint {.importc: "JS_IsBigFloat",
+proc JS_IsBigFloat*(v: JSValue): JS_BOOL {.importc: "JS_IsBigFloat",
                                     header: headerquickjs.}
 
-proc JS_IsBool*(v: JSValue): cint {.importc: "JS_IsBool", header: headerquickjs.}
+proc JS_IsBool*(v: JSValue): JS_BOOL {.importc: "JS_IsBool", header: headerquickjs.}
 
-proc JS_IsNull*(v: JSValue): cint {.importc: "JS_IsNull", header: headerquickjs.}
+proc JS_IsNull*(v: JSValue): JS_BOOL {.importc: "JS_IsNull", header: headerquickjs.}
 
-proc JS_IsUndefined*(v: JSValue): cint {.importc: "JS_IsUndefined",
+proc JS_IsUndefined*(v: JSValue): JS_BOOL {.importc: "JS_IsUndefined",
                                      header: headerquickjs.}
 
-proc JS_IsException*(v: JSValue): cint {.importc: "JS_IsException",
+proc JS_IsException*(v: JSValue): JS_BOOL {.importc: "JS_IsException",
                                      header: headerquickjs.}
 
-proc JS_IsUninitialized*(v: JSValue): cint {.importc: "JS_IsUninitialized",
+proc JS_IsUninitialized*(v: JSValue): JS_BOOL {.importc: "JS_IsUninitialized",
     header: headerquickjs.}
 
-proc JS_IsString*(v: JSValue): cint {.importc: "JS_IsString", header: headerquickjs.}
+proc JS_IsString*(v: JSValue): JS_BOOL {.importc: "JS_IsString", header: headerquickjs.}
 
-proc JS_IsSymbol*(v: JSValue): cint {.importc: "JS_IsSymbol", header: headerquickjs.}
+proc JS_IsSymbol*(v: JSValue): JS_BOOL {.importc: "JS_IsSymbol", header: headerquickjs.}
 
-proc JS_IsObject*(v: JSValue): cint {.importc: "JS_IsObject", header: headerquickjs.}
+proc JS_IsObject*(v: JSValue): JS_BOOL {.importc: "JS_IsObject", header: headerquickjs.}
 
 proc JS_Throw*(ctx: ptr JSContext; obj: JSValue): JSValue {.importc: "JS_Throw",
     header: headerquickjs.}
 proc JS_GetException*(ctx: ptr JSContext): JSValue {.importc: "JS_GetException",
     header: headerquickjs.}
-proc JS_IsError*(ctx: ptr JSContext; val: JSValue): cint {.importc: "JS_IsError",
+proc JS_IsError*(ctx: ptr JSContext; val: JSValue): JS_BOOL {.importc: "JS_IsError",
     header: headerquickjs.}
 proc JS_EnableIsErrorProperty*(ctx: ptr JSContext; enable: cint) {.
     importc: "JS_EnableIsErrorProperty", header: headerquickjs.}
@@ -660,15 +745,15 @@ proc JS_SetCanBlock*(rt: ptr JSRuntime; can_block: cint) {.importc: "JS_SetCanBl
 
 type
   JSModuleNormalizeFunc* = proc (ctx: ptr JSContext; module_base_name: cstring;
-                              module_name: cstring; opaque: pointer): cstring
-  JSModuleLoaderFunc* = proc (ctx: ptr JSContext; module_name: cstring; opaque: pointer): ptr JSModuleDef
+                              module_name: cstring; opaque: pointer): cstring {.cdecl.}
+  JSModuleLoaderFunc* = proc (ctx: ptr JSContext; module_name: cstring; opaque: pointer): ptr JSModuleDef {.cdecl.}
 
 ##  module_normalize = NULL is allowed and invokes the default module
 ##    filename normalizer
 
 proc JS_SetModuleLoaderFunc*(rt: ptr JSRuntime;
-                            module_normalize: ptr JSModuleNormalizeFunc;
-                            module_loader: ptr JSModuleLoaderFunc; opaque: pointer) {.
+                            module_normalize: JSModuleNormalizeFunc;
+                            module_loader: JSModuleLoaderFunc; opaque: pointer) {.
     importc: "JS_SetModuleLoaderFunc", header: headerquickjs.}
 ##  JS Job support
 
@@ -698,37 +783,8 @@ proc JS_ReadObject*(ctx: ptr JSContext; buf: ptr uint8; buf_len: csize_t; flags:
     importc: "JS_ReadObject", header: headerquickjs.}
 proc JS_EvalFunction*(ctx: ptr JSContext; fun_obj: JSValue): JSValue {.
     importc: "JS_EvalFunction", header: headerquickjs.}
+
 ##  C function definition
-
-type                          ##  XXX: should rename for namespace isolation
-  JSCFunctionEnum* {.size: sizeof(cint).} = enum
-    JS_CFUNC_generic, JS_CFUNC_generic_magic, JS_CFUNC_constructor,
-    JS_CFUNC_constructor_magic, JS_CFUNC_constructor_or_func,
-    JS_CFUNC_constructor_or_func_magic, JS_CFUNC_f_f, JS_CFUNC_f_f_f,
-    JS_CFUNC_getter, JS_CFUNC_setter, JS_CFUNC_getter_magic, JS_CFUNC_setter_magic,
-    JS_CFUNC_iterator_next
-  JSCFunctionType* {.union.} = object
-    generic*: JSCFunction
-    generic_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}
-    constructor*: JSCFunction
-    constructor_magic*: proc (ctx: ptr JSContext;
-        new_target: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; magic: cint): JSValue {.cdecl.}
-    constructor_or_func*: JSCFunction
-    f_f*: proc (a1: cdouble): cdouble {.cdecl.}
-    f_f_f*: proc (a1: cdouble; a2: cdouble): cdouble {.cdecl.}
-    getter*: proc (ctx: ptr JSContext; this_val: JSValue): JSValue {.cdecl.}
-    setter*: proc (ctx: ptr JSContext; this_val: JSValue;
-                                     val: JSValue): JSValue {.cdecl.}
-    getter_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; magic: cint): JSValue {.cdecl.}
-    setter_magic*: proc (ctx: ptr JSContext;
-        this_val: JSValue; val: JSValue; magic: cint): JSValue {.cdecl.}
-    iterator_next*: proc (ctx: ptr JSContext;
-        this_val: JSValue; argc: cint; argv: ptr UncheckedArray[JSValue]; pdone: ptr cint; magic: cint): JSValue {.cdecl.}
-
-
-
 proc JS_NewCFunction2*(ctx: ptr JSContext; `func`: JSCFunction; name: cstring;
                       length: cint; cproto: JSCFunctionEnum; magic: cint): JSValue {.
     importc: "JS_NewCFunction2", header: headerquickjs.}
@@ -745,56 +801,6 @@ proc JS_NewCFunctionMagic*(ctx: ptr JSContext; `func`: ptr JSCFunctionMagic;
     header: headerquickjs.}
 
 ##  C property definition
-
-type
-  JSCDeclareFuntion* {.bycopy.} = object
-    length*: uint8 ##  XXX: should move outside union
-    cproto*: JSCFunctionEnum ##  XXX: should move outside union
-    cfunc*: JSCFunctionType
-
-  JSCDeclareSetGet* {.bycopy.} = object
-    fget*: JSCFunctionType
-    fset*: JSCFunctionType
-
-  JSCDeclareAlias* {.bycopy.} = object
-    name*: cstring
-    base*: cint
-
-  JSCDeclarePropList* {.bycopy.} = object
-    tab*: ptr JSCFunctionListEntry
-    len*: cint
-
-  JSCDeclareUnion* {.union.} = object
-    fn*: JSCDeclareFuntion
-    getset*: JSCDeclareSetGet
-    alias*: JSCDeclareAlias
-    prop_list*: JSCDeclarePropList
-    str*: cstring
-    i32*: int32
-    i64*: int64
-    f64*: float64
-
-
-  JS_DEF_TYPE* = enum
-    JS_DEF_CFUNC = 0
-    JS_DEF_CGETSET = 1
-    JS_DEF_CGETSET_MAGIC = 2
-    JS_DEF_PROP_STRING = 3
-    JS_DEF_PROP_INT32 = 4
-    JS_DEF_PROP_INT64 = 5
-    JS_DEF_PROP_DOUBLE = 6
-    JS_DEF_PROP_UNDEFINED = 7
-    JS_DEF_OBJECT = 8
-    JS_DEF_ALIAS = 9
-
-
-  JSCFunctionListEntry* {.bycopy.} = object
-    name*: cstring
-    prop_flags*: uint8
-    def_type*: JS_DEF_TYPE
-    magic*: int16
-    u*: JSCDeclareUnion
-
 proc JS_SetPropertyFunctionList*(ctx: ptr JSContext; obj: JSValue;
                                 tab: ptr JSCFunctionListEntry; len: cint) {.
     importc: "JS_SetPropertyFunctionList", header: headerquickjs.}
