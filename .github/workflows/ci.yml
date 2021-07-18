@@ -9,8 +9,8 @@ jobs:
     strategy:
       matrix:
         os:
-          - windows-latest
-          # - macos-latest
+          #- windows-latest
+          - macos-latest
           - ubuntu-latest
         nimversion:
           - stable
