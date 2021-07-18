@@ -20,7 +20,7 @@ var js_point_funcs = [
 ]
 
 let e = newEngine()
-(point_class, js_point_class_id) = e.registerClass(Point, js_point_funcs)
+(point_class, js_point_class_id) = e.createClass(Point, js_point_funcs)
 e.registerValue("Point", point_class)
 let ret = e.evalString("""
 function assert(b, str) {

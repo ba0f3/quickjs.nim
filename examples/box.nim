@@ -33,9 +33,11 @@ let js_box_funcs = [
 ]
 
 let e = newEngine()
-discard e.registerClass(Box, js_box_funcs)
+let (box_class, _) = e.createClass(Box, js_box_funcs)
+e.registerValue("Box", box_class)
 e.registerValue("box", box)
 let ret = e.evalString("""
+console.log(Box);
 console.log("box", JSON.stringify(box));
 console.log("width", box.width, "height", box.height);
 console.log("box area is: ", box.area());

@@ -168,8 +168,8 @@ template fail() =
   JS_FreeValue(ctx, result)
   return JS_EXCEPTION
 
-proc registerClass*(e: Engine, classDef: JSClassDef, classId: var JSClassID, ctor: JSCFunction, functions: openArray[JSCFunctionListEntry] = []): JSValue =
-  ## Register an Object class
+proc createClass*(e: Engine, classDef: JSClassDef, classId: var JSClassID, ctor: JSCFunction, functions: openArray[JSCFunctionListEntry] = []): JSValue =
+  ## Create new Javascript class
   var proto = JS_NewObject(e.ctx)
   discard JS_NewClassID(addr classId)
   discard JS_NewClass(e.rt, classId, classDef)
@@ -179,7 +179,8 @@ proc registerClass*(e: Engine, classDef: JSClassDef, classId: var JSClassID, cto
   if functions.len > 0:
     JS_SetPropertyFunctionList(e.ctx, proto, unsafeAddr functions[0], functions.len.int32)
 
-proc registerClass*(e: Engine, T: typedesc, functions: openArray[JSCFunctionListEntry] = []): (JSValue, JSClassID) {.cdecl.} =
+proc createClass*(e: Engine, T: typedesc, functions: openArray[JSCFunctionListEntry] = []): (JSValue, JSClassID) {.cdecl.} =
+  ## Create new Javascript class from Nim object
   proc js_default_finalizer(rt: JSRuntime, val: JSValue) {.cdecl.} =
     let s = JS_GetOpaque(val, tblClassIds[$T])
     if s != nil:
@@ -250,5 +251,5 @@ proc registerClass*(e: Engine, T: typedesc, functions: openArray[JSCFunctionList
     js_proto_functions.add(functions[i])
 
   var classId: JSClassID
-  result = (e.registerClass(classDef, classId, js_default_ctor, js_proto_functions), classId)
+  result = (e.createClass(classDef, classId, js_default_ctor, js_proto_functions), classId)
   tblClassIds[$T] = classId

@@ -14,7 +14,7 @@ task examples, "Compile and run examples":
     exec "nim c -r hello_eval.nim"
     exec "nim c -r hello_function.nim"
     exec "nim c -r hello_object.nim"
-    exec "nim c point_nimgen.nim"
+    exec "nim c -r point_nimgen.nim"
     exec "nim c --app:lib fib.nim"
     exec "nim c --app:lib point.nim"
     exec "nim c -r run_test.nim test_fib.js"
