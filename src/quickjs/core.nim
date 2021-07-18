@@ -60,9 +60,9 @@ const                         ##  all tags with a reference count are negative
   JS_TAG_FLOAT64* = 7           ##  any larger tag is FLOAT64 if JS_NAN_BOXING
 
 type
-  JSValueUnion* {.union.} = object
+  JSValueUnion* {.importc, header: headerquickjs, union.} = object
     i32* {.importc: "int32".}: int32
-    f64*  {.importc: "int64".}: float64
+    f64*  {.importc: "float64".}: float64
     pt* {.importc: "ptr".}: pointer
 
   JSValue*  {.importc, header: headerquickjs, bycopy.} = object
@@ -167,17 +167,10 @@ type
   JSRefCountHeader* {.importc, header: headerquickjs, bycopy.} = object
     ref_count* {.importc: "ref_count".}: int32
 
-template JS_VALUE_GET_TAG*(v: untyped): untyped =
-  (int)((v) shr 32)
-
-template JS_VALUE_GET_INT*(v: untyped): untyped =
-  (int)(v)
-
-template JS_VALUE_GET_BOOL*(v: untyped): untyped =
-  (int)(v)
-
-template JS_VALUE_GET_PTR*(v: untyped): untyped =
-  cast[pointer]((ptr int)(v))
+template JS_VALUE_GET_TAG*(v: untyped): untyped = v.tag
+template JS_VALUE_GET_INT*(v: untyped): untyped = v.u.i32
+template JS_VALUE_GET_BOOL*(v: untyped): untyped = v.u.i32 != 0
+template JS_VALUE_GET_PTR*(v: untyped): untyped = v.u.pt
 
 proc JS_MKVAL*(tag: int64, val: int32): JSValue {.inline.} =
   JSValue(
@@ -209,14 +202,9 @@ template JS_VALUE_IS_BOTH_FLOAT*(v1, v2: untyped): untyped =
   (JS_TAG_IS_FLOAT64(JS_VALUE_GET_TAG(v1)) and
       JS_TAG_IS_FLOAT64(JS_VALUE_GET_TAG(v2)))
 
-template JS_VALUE_GET_OBJ*(v: untyped): untyped =
-  (cast[JSObject](JS_VALUE_GET_PTR(v)))
-
-template JS_VALUE_GET_STRING*(v: untyped): untyped =
-  (cast[ptr JSString](JS_VALUE_GET_PTR(v)))
-
-template JS_VALUE_HAS_REF_COUNT*(v: untyped): untyped =
-  (cast[uint32](JS_VALUE_GET_TAG(v)) >= cast[uint32](JS_TAG_FIRST))
+template JS_VALUE_GET_OBJ*(v: untyped): untyped = cast[JSObject](JS_VALUE_GET_PTR(v))
+template JS_VALUE_GET_STRING*(v: untyped): untyped = cast[ptr JSString](JS_VALUE_GET_PTR(v))
+template JS_VALUE_HAS_REF_COUNT*(v: untyped): untyped = cast[uint32](JS_VALUE_GET_TAG(v)) >= cast[uint32](JS_TAG_FIRST)
 
 ##  special values
 
@@ -409,7 +397,7 @@ type
   JSClassFinalizer* = proc (rt: JSRuntime, val: JSValue) {.cdecl.}
   JSClassGCMark* = proc (rt: JSRuntime, val: JSValue, mark_func: JS_MarkFunc) {.cdecl.}
   JSClassCall* = proc (ctx: JSContext, func_obj: JSValue, this_val: JSValue, argc: int32, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.}
-  JSClassDef* {.bycopy.} = object
+  JSClassDef* {.bycopy.} = ref object
     class_name*: cstring
     finalizer*: JSClassFinalizer
     gc_mark*: JSClassGCMark
@@ -418,7 +406,7 @@ type
     exotic*: JSClassExoticMethods
 
 proc JS_NewClassID*(pclass_id: ptr JSClassID): JSClassID {.importc, header: headerquickjs.}
-proc JS_NewClass*(rt: JSRuntime, class_id: JSClassID, class_def: ptr JSClassDef): int32 {.importc, header: headerquickjs.}
+proc JS_NewClass*(rt: JSRuntime, class_id: JSClassID, class_def: JSClassDef): int32 {.importc, header: headerquickjs.}
 proc JS_IsRegisteredClass*(rt: JSRuntime, class_id: JSClassID): bool {.importc, header: headerquickjs.}
 ##  value handling
 

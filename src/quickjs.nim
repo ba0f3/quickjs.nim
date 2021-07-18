@@ -1,5 +1,5 @@
-import os, quickjs/[core, helpers, libc]
-export core, helpers, libc
+import os, tables, quickjs/[core, helpers, libc]
+export core, helpers
 
 type
   Engine*  = object
@@ -10,20 +10,18 @@ proc `=destroy`*(e: var Engine) =
   JS_FreeContext(e.ctx)
   JS_FreeRuntime(e.rt)
 
+var tblClassIds = initTable[string, JSClassID]()
 
 proc initCustomContext(rt: JSRuntime): JSContext =
-  result = JS_NewContextRaw(rt)
+  result = JS_NewContext(rt)
   if result != nil:
-    JS_AddIntrinsicEval(result)
-    JS_AddIntrinsicBaseObjects(result)
-    JS_AddIntrinsicDate(result)
-    JS_AddIntrinsicJSON(result)
-
     js_std_add_helpers(result, 0, nil)
     discard js_init_module_std(result, "std")
     discard js_init_module_os(result, "os")
 
+    js_std_init_handlers(rt)
     JS_SetModuleLoaderFunc(rt, nil, js_module_loader, nil)
+
   else:
     raise newException(IOError, "failed to create new context")
 
@@ -32,7 +30,6 @@ proc newEngine*(): Engine =
   ## Create new Javascript Engine
   result.rt = JS_NewRuntime()
   js_std_set_worker_new_context_func(initCustomContext)
-  js_std_init_handlers(result.rt)
   result.ctx = initCustomContext(result.rt)
 
 proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
@@ -75,36 +72,69 @@ proc registerObject*(e: Engine, objectName: string, functions: openArray[JSCFunc
   discard JS_SetPropertyStr(e.ctx, global_obj, objectName, result)
   JS_FreeValue(e.ctx, global_obj)
 
-proc createValue*[T](e: Engine, value: T, flags: int32 = JS_PROP_C_W_E): JSValue {.discardable.} =
+proc createValue*[T](ctx: JSContext, value: T, flags: int32 = JS_PROP_C_W_E): JSValue {.discardable.} =
   ## Create Javascript value from Nim types
   when T is object:
-    result = JS_NewObject(e.ctx)
-    for k, v in value.fieldPairs():
-      let val = e.createValue(v)
-      discard JS_DefinePropertyValueStr(e.ctx, result, k, val, flags)
+    if tblClassIds.hasKey($T):
+      result = JS_NewObjectClass(ctx, tblClassIds[$T])
+      JS_SetOpaque(result, unsafeAddr value)
+    else:
+      result = JS_NewObject(ctx)
+      for k, v in value.fieldPairs():
+        let val = createValue(ctx, v)
+        discard JS_DefinePropertyValueStr(ctx, result, k, val, flags)
   elif T is array or T is seq:
-    result = JS_NewArray(e.ctx)
+    result = JS_NewArray(ctx)
     for i in 0..<value.len:
-      let val = e.createValue(value[i])
-      discard JS_DefinePropertyValueUint32(e.ctx, result, i.uint32, val, flags)
+      let val = createValue(ctx, value[i])
+      discard JS_DefinePropertyValueUint32(ctx, result, i.uint32, val, flags)
   elif T is SomeSignedInt:
     if sizeof(value) == sizeof(int64):
-      result = JS_NewInt64(e.ctx, value)
+      result = JS_NewInt64(ctx, value)
     else:
-      result = JS_NewInt32(e.ctx, value.int32)
+      result = JS_NewInt32(ctx, value.int32)
   elif T is SomeUnsignedInt:
     if sizeof(value) == sizeof(uint64):
-      result = JS_NewUInt64(e.ctx, value)
+      result = JS_NewUInt64(ctx, value)
     else:
-      result = JS_NewUInt32(e.ctx, value.uint32)
+      result = JS_NewUInt32(ctx, value.uint32)
   elif T is SomeFloat:
-    result = JS_NewFloat64(e.ctx, value)
+    result = JS_NewFloat64(ctx, value)
   elif T is bool:
-    result = JS_NewBool(e.ctx, value.int32)
+    result = JS_NewBool(ctx, value.int32)
   elif T is string or T is cstring:
-    result = JS_NewString(e.ctx, value.cstring)
+    result = JS_NewString(ctx, value.cstring)
   else:
-    {.error: "createValue error: type not supported".}
+    JS_ThrowTypeError(ctx, $T &" type not supported")
+
+proc getValue*[T](ctx: JSContext, val: JSValue, v: ptr T): bool =
+  when T is object:
+    if tblClassIds.hasKey($T):
+      v = cast[ptr T](JS_GetOpaque(val, tblClassIds[$T]))
+  elif T is array or T is seq:
+    discard
+  elif T is SomeSignedInt:
+    when sizeof(T) == sizeof(int64):
+      return JS_ToInt64(ctx, cast[ptr int64](v), val) == 0
+    else:
+      return JS_ToInt32(ctx, v, val) == 0
+  elif T is SomeUnsignedInt:
+    when sizeof(T) == sizeof(int64):
+      return JS_ToUInt64(ctx, v, val) == 0
+    else:
+      return JS_ToUInt32(ctx, v, val) == 0
+  elif T is SomeFloat:
+    return JS_ToFloat64(ctx, v, val) == 0
+  elif T is bool:
+    v[] = JS_ToBool(ctx, val) != 0
+    return true
+  elif T is string:
+    v[] = $JS_ToCString(ctx, val)
+    return true
+  elif T is cstring:
+    return JS_ToCString(ctx, v, val) == 0
+  else:
+    JS_ThrowTypeError(ctx, $T &" type not supported")
 
 proc registerValue*(e: Engine, parent: JSValue, name: string, val: JSValue, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
   ## Register a Javascript value as child of `parent`
@@ -116,6 +146,11 @@ proc registerValue*(e: Engine, name: string, val: JSValue, flags: int32 = JS_PRO
   result = e.registerValue(global_obj, name, val, flags)
   JS_FreeValue(e.ctx, global_obj)
 
+proc registerValue*(e: Engine, name: string, val: any, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
+  ## Register a Nim variable as global Javascript value
+  let jsVal = createValue(e.ctx, val)
+  result = e.registerValue(name, jsVal, flags)
+
 proc registerFunction*(e: Engine, parent: JSValue, name: string, paramCount: int, fn: JSCFunction) =
   ## Register a Nim fuction with `name` so Javascript can calls it
   let fn = JS_NewCFunction(e.ctx, fn, name, paramCount.int32)
@@ -126,3 +161,94 @@ proc registerFunction*(e: Engine, name: string, paramCount: int, fn: JSCFunction
   let global_obj = JS_GetGlobalObject(e.ctx)
   e.registerFunction(global_obj, name, paramCount, fn)
   JS_FreeValue(e.ctx, global_obj)
+
+#[ Class ]#
+template fail() =
+  js_free(ctx, s)
+  JS_FreeValue(ctx, result)
+  return JS_EXCEPTION
+
+proc registerClass*(e: Engine, classDef: JSClassDef, classId: var JSClassID, ctor: JSCFunction, functions: openArray[JSCFunctionListEntry] = []): JSValue =
+  ## Register an Object class
+  var proto = JS_NewObject(e.ctx)
+  discard JS_NewClassID(addr classId)
+  discard JS_NewClass(e.rt, classId, classDef)
+  result = JS_NewCFunction2(e.ctx, ctor, classDef.class_name, 2, JS_CFUNC_constructor, 0)
+  JS_SetConstructor(e.ctx, result, proto)
+  JS_SetClassProto(e.ctx, classId, proto)
+  if functions.len > 0:
+    JS_SetPropertyFunctionList(e.ctx, proto, unsafeAddr functions[0], functions.len.int32)
+
+proc registerClass*(e: Engine, T: typedesc, functions: openArray[JSCFunctionListEntry] = []): (JSValue, JSClassID) {.cdecl.} =
+  proc js_default_finalizer(rt: JSRuntime, val: JSValue) {.cdecl.} =
+    let s = JS_GetOpaque(val, tblClassIds[$T])
+    if s != nil:
+      js_free_rt(rt, s)
+
+  proc js_default_ctor(ctx: JSContext, new_target: JSValueConst, argc: int32, argv: ptr UncheckedArray[JSValueConst]): JSValue {.cdecl.} =
+    result = JS_UNDEFINED
+    var s = cast[ptr T](js_mallocz(ctx, sizeof(T).csize_t))
+    if s == nil:
+      return JS_EXCEPTION
+
+    var i = 0
+    for k, v in s[].fieldPairs():
+      if not getValue(ctx, argv[i], addr v):
+        fail()
+      inc(i)
+
+    let proto = JS_GetPropertyStr(ctx, new_target, "prototype")
+    if JS_IsException(proto):
+      fail()
+    result = JS_NewObjectProtoClass(ctx, proto, tblClassIds[$T])
+    JS_FreeValue(ctx, proto)
+    if JS_IsException(result):
+      fail()
+    JS_SetOpaque(result, s)
+
+  proc js_default_getter(ctx: JSContext, this: JSValueConst, magic: int32): JSValue {.cdecl.} =
+    let s = cast[ptr T](JS_GetOpaque2(ctx, this, tblClassIds[$T]))
+    if s == nil:
+      return JS_EXCEPTION
+
+    var i = 0
+    for k, v in s[].fieldPairs():
+      if i == magic:
+        return createValue(ctx, v)
+      inc(i)
+
+  proc js_default_setter(ctx: JSContext, this: JSValueConst, val: JSValue, magic: int32): JSValue {.cdecl.} =
+    result = JS_UNDEFINED
+    let s = cast[ptr T](JS_GetOpaque2(ctx, this, tblClassIds[$T]))
+    if s == nil:
+      return JS_EXCEPTION
+    var i = 0
+    for k, v in s[].fieldPairs():
+      if i == magic:
+        if not getValue(ctx, val, addr v):
+          return JS_EXCEPTION
+        break
+      inc(i)
+
+  if tblClassIds.hasKey($T):
+    return
+
+  let classDef = JSClassDef(
+    class_name: $T,
+    finalizer: js_default_finalizer
+  )
+
+  var
+    js_proto_functions: seq[JSCFunctionListEntry]
+    i = 0'i16
+  var t: T
+  for k, v in t.fieldPairs():
+    js_proto_functions.add(JS_CGETSET_MAGIC_DEF(k, js_default_getter, js_default_setter, i))
+    inc(i)
+
+  for i in 0..<functions.len:
+    js_proto_functions.add(functions[i])
+
+  var classId: JSClassID
+  result = (e.registerClass(classDef, classId, js_default_ctor, js_proto_functions), classId)
+  tblClassIds[$T] = classId

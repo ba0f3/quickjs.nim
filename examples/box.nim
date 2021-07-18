@@ -33,11 +33,8 @@ let js_box_funcs = [
 ]
 
 let e = newEngine()
-
-let jsBox = e.createValue(box)
-e.registerFunctionList(jsBox, js_box_funcs)
-
-e.registerValue("box", jsBox)
+discard e.registerClass(Box, js_box_funcs)
+e.registerValue("box", box)
 let ret = e.evalString("""
 console.log("box", JSON.stringify(box));
 console.log("width", box.width, "height", box.height);
