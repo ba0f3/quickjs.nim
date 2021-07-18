@@ -35,28 +35,25 @@ proc newEngine*(): Engine =
   js_std_init_handlers(result.rt)
   result.ctx = initCustomContext(result.rt)
 
-proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
+proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): JSValue  {.discardable.} =
   ## Evaluates Javascript code represented as a string
   let inputLen = input.len.csize_t
-  var val: JSValue
 
   if (flags and JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE:
-    val = JS_Eval(e.ctx, input, inputLen, filename, flags or JS_EVAL_FLAG_COMPILE_ONLY)
-    if not JS_IsException(val):
-      discard js_module_set_import_meta(e.ctx, val, true, true)
-      val = JS_EvalFunction(e.ctx, val)
+    result = JS_Eval(e.ctx, input, inputLen, filename, flags or JS_EVAL_FLAG_COMPILE_ONLY)
+    if not JS_IsException(result):
+      discard js_module_set_import_meta(e.ctx, result, true, true)
+      result = JS_EvalFunction(e.ctx, result)
   else:
-    val = JS_Eval(e.ctx, input, inputLen, filename, flags)
+    result = JS_Eval(e.ctx, input, inputLen, filename, flags)
 
-  if JS_IsException(val):
+  if JS_IsException(result):
     js_std_dump_error(e.ctx)
-    result = -1
-  else:
-    result = 0
+    result = JS_EXCEPTION
   js_std_loop(e.ctx)
-  Js_FreeValue(e.ctx, val)
+  Js_FreeValue(e.ctx, result)
 
-proc evalFile*(e: Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): int {.discardable.} =
+proc evalFile*(e: Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): JSValue {.discardable.} =
   ## Reads `filename` and then evaluates Javascript code represented as a string
   if not filename.fileExists:
     raise newException(IOError, "file not found: " & filename)
