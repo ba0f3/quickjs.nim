@@ -14,7 +14,7 @@ var hello = [byte(0x02), 0x04, 0x0e, 0x63, 0x6f, 0x6e, 0x73, 0x6f,
 
 var args: array[1, cstring]
 
-proc JS_NewCustomContext(rt: JSRuntime): JSContext {.cdecl.} =
+proc JS_NewCustomContext(rt: JSRuntime): JSContext =
   result = JS_NewContextRaw(rt)
   if result != nil:
     JS_AddIntrinsicBaseObjects(result)

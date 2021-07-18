@@ -11,7 +11,7 @@ proc `=destroy`*(e: var Engine) =
   JS_FreeRuntime(e.rt)
 
 
-proc initCustomContext(rt: JSRuntime): JSContext {.cdecl.} =
+proc initCustomContext(rt: JSRuntime): JSContext =
   result = JS_NewContextRaw(rt)
   if result != nil:
     JS_AddIntrinsicEval(result)
@@ -35,25 +35,28 @@ proc newEngine*(): Engine =
   js_std_init_handlers(result.rt)
   result.ctx = initCustomContext(result.rt)
 
-proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): JSValue  {.discardable.} =
+proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
   ## Evaluates Javascript code represented as a string
   let inputLen = input.len.csize_t
+  var val: JSValue
 
   if (flags and JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE:
-    result = JS_Eval(e.ctx, input, inputLen, filename, flags or JS_EVAL_FLAG_COMPILE_ONLY)
-    if not JS_IsException(result):
-      discard js_module_set_import_meta(e.ctx, result, true, true)
-      result = JS_EvalFunction(e.ctx, result)
+    val = JS_Eval(e.ctx, input, inputLen, filename, flags or JS_EVAL_FLAG_COMPILE_ONLY)
+    if not JS_IsException(val):
+      discard js_module_set_import_meta(e.ctx, val, true, true)
+      val = JS_EvalFunction(e.ctx, val)
   else:
-    result = JS_Eval(e.ctx, input, inputLen, filename, flags)
+    val = JS_Eval(e.ctx, input, inputLen, filename, flags)
 
-  if JS_IsException(result):
+  if JS_IsException(val):
     js_std_dump_error(e.ctx)
-    result = JS_EXCEPTION
+    result = -1
+  else:
+    result = 0
   js_std_loop(e.ctx)
-  Js_FreeValue(e.ctx, result)
+  Js_FreeValue(e.ctx, val)
 
-proc evalFile*(e: Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): JSValue {.discardable.} =
+proc evalFile*(e: Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): int {.discardable.} =
   ## Reads `filename` and then evaluates Javascript code represented as a string
   if not filename.fileExists:
     raise newException(IOError, "file not found: " & filename)

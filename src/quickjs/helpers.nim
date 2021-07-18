@@ -6,7 +6,7 @@ proc JS_CFUNC_DEF*(name: string, length: uint8, fn1: JSCFunction): JSCFunctionLi
     prop_flags: JS_PROP_WRITABLE or JS_PROP_CONFIGURABLE,
     def_type: JS_DEF_CFUNC,
     u: JSCDeclareUnion(
-      fn: JSCDeclareFuntion(
+      fn: JSCDeclareFunction(
         length: length,
         cproto: JS_CFUNC_generic,
         cfunc: JSCFunctionType(generic: fn1)
@@ -19,7 +19,7 @@ proc JS_CFUNC_MAGIC_DEF*(name: string, length: uint8, fn1:  proc (ctx: JSContext
     def_type: JS_DEF_CFUNC,
     magic: magic,
     u: JSCDeclareUnion(
-      fn: JSCDeclareFuntion(
+      fn: JSCDeclareFunction(
         length: length,
         cproto: JS_CFUNC_generic_magic,
         cfunc: JSCFunctionType(generic_magic: fn1)
@@ -34,7 +34,7 @@ proc JS_ITERATOR_NEXT_DEF*(name: string, length: uint8, fn1: proc (ctx: JSContex
     def_type: JS_DEF_CFUNC,
     magic: magic,
     u: JSCDeclareUnion(
-      fn: JSCDeclareFuntion(
+      fn: JSCDeclareFunction(
         length: length,
         cproto: JS_CFUNC_iterator_next,
         cfunc: JSCFunctionType(
