@@ -150,7 +150,7 @@ proc registerValue*(e: Engine, name: string, val: JSValue, flags: int32 = JS_PRO
   result = e.registerValue(global_obj, name, val, flags)
   JS_FreeValue(e.ctx, global_obj)
 
-proc registerValue*(e: Engine, name: string, val: any, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
+proc registerValue*(e: Engine, name: string, val: auto, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
   ## Register a Nim variable as global Javascript value
   let jsVal = createValue(e.ctx, val)
   result = e.registerValue(name, jsVal, flags)
