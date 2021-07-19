@@ -172,16 +172,8 @@ template JS_VALUE_GET_INT*(v: untyped): untyped = v.u.i32
 template JS_VALUE_GET_BOOL*(v: untyped): untyped = v.u.i32 != 0
 template JS_VALUE_GET_PTR*(v: untyped): untyped = v.u.pt
 
-proc JS_MKVAL*(tag: int64, val: int32): JSValue {.inline.} =
-  JSValue(
-    u: JSValueUnion(
-      i32: val
-    ),
-    tag: tag
-  )
-
-template JS_MKPTR*(tag, `ptr`: untyped): untyped =
-  (((uint64)(tag) shl 32) or (ptr uint)(`ptr`))
+template JS_MKVAL*(t, v: untyped): untyped = JSValue(u: JSValueUnion(i32: v), tag: t)
+template JS_MKPTR*(t, p: untyped): untyped = JSValue(u: JSValueUnion(pt: v), tag: t)
 
 const
   JS_FLOAT64_TAG_ADDEND* = (0x00000000 - JS_TAG_FIRST + 1) ##  quiet NaN encoding

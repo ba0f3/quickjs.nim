@@ -19,7 +19,7 @@ var js_point_funcs = [
   JS_CFUNC_DEF("norm", 0, js_point_norm),
 ]
 
-let e = newEngine()
+var e = newEngine()
 (point_class, js_point_class_id) = e.createClass(Point, js_point_funcs)
 e.registerValue("Point", point_class)
 let ret = e.evalString("""

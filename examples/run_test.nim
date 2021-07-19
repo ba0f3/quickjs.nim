@@ -8,7 +8,7 @@ if paramCount() != 1:
 if not paramStr(0).fileExists:
   quit("File not found: " & paramStr(1))
 
-let
+var
   e = newEngine()
   ret = e.evalFile(paramStr(1))
 

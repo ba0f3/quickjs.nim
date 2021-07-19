@@ -5,7 +5,7 @@ proc hello(ctx: JSContext, this_val: JSValue, argc: cint, argv: ptr UncheckedArr
   echo "Hello world, greating from Nim!"
 
 
-let e = newEngine()
+var e = newEngine()
 e.registerFunction("hello", 0, hello)
 
 let ret = e.evalString("hello()")

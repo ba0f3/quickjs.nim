@@ -9,7 +9,7 @@ let js_hello_funcs = [
   JS_CFUNC_DEF("greating", 1, hello_greating)
 ]
 
-let e = newEngine()
+var e = newEngine()
 e.registerObject("hello", js_hello_funcs)
 let ret = e.evalString("hello.greating('Nim')")
 quit(ret)

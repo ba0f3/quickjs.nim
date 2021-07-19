@@ -32,14 +32,23 @@ let js_box_funcs = [
   JS_CFUNC_DEF("area", 0, box_area)
 ]
 
-let e = newEngine()
+var e = newEngine()
 let (box_class, _) = e.createClass(Box, js_box_funcs)
 e.registerValue("Box", box_class)
 e.registerValue("box", box)
 let ret = e.evalString("""
 console.log(Box);
 console.log("box", JSON.stringify(box));
-console.log("width", box.width, "height", box.height);
-console.log("box area is: ", box.area());
+console.log("width", box.width, "height", box.height, "area", box.area());
+box.height = 6
+console.log("width", box.width, "height", box.height, "area", box.area());
+box.contains.push(4);
+console.log(box.contains)
+
+const fruits = ["Banana", "Orange", "Apple", "Mango"];
+fruits.push("Kiwi");   // Adds "Kiwi"
+console.log(fruits)
 """)
+echo box
+assert e.rv == JS_UNDEFINED
 quit(ret)

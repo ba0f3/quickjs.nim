@@ -3,10 +3,12 @@ export core, helpers
 
 type
   Engine*  = object
-    ctx*: JSContext
     rt*: JSRuntime
+    ctx: JSContext
+    retval*: JSValue
 
 proc `=destroy`*(e: var Engine) =
+  JS_FreeValue(e.ctx, e.retval)
   JS_FreeContext(e.ctx)
   JS_FreeRuntime(e.rt)
 
@@ -32,7 +34,7 @@ proc newEngine*(): Engine =
   js_std_set_worker_new_context_func(initCustomContext)
   result.ctx = initCustomContext(result.rt)
 
-proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_MODULE): int  {.discardable.} =
+proc evalString*(e: var Engine, input: string, filename="<input>", flags: int32 = JS_EVAL_TYPE_GLOBAL): int  {.discardable.} =
   ## Evaluates Javascript code represented as a string
   let inputLen = input.len.csize_t
   var val: JSValue
@@ -45,6 +47,8 @@ proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS
   else:
     val = JS_Eval(e.ctx, input, inputLen, filename, flags)
 
+  e.retval = JS_DupValue(e.ctx, val)
+
   if JS_IsException(val):
     js_std_dump_error(e.ctx)
     result = -1
@@ -53,7 +57,7 @@ proc evalString*(e: Engine, input: string, filename="<input>", flags: int32 = JS
   js_std_loop(e.ctx)
   Js_FreeValue(e.ctx, val)
 
-proc evalFile*(e: Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): int {.discardable.} =
+proc evalFile*(e: var Engine, filename: string, flags: int32 = JS_EVAL_TYPE_MODULE): int {.discardable.} =
   ## Reads `filename` and then evaluates Javascript code represented as a string
   if not filename.fileExists:
     raise newException(IOError, "file not found: " & filename)
