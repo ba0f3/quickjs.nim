@@ -1,6 +1,6 @@
 import os
 
-const LIB_DIR = currentSourcePath().splitPath.head
+const LIB_DIR = currentSourcePath().splitPath.head & "/../private"
 const headerquickjs* = LIB_DIR & "/quickjs/quickjs.h"
 
 {.passC: "-D_GNU_SOURCE -DCONFIG_BIGNUM -DCONFIG_VERSION=\"\"".}

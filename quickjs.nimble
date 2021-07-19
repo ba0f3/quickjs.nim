@@ -3,7 +3,8 @@ version     = "0.1.0"
 author      = "ba0f3"
 description = "High level QuickJS wrapper for Nim"
 license     = "MIT"
-srcDir        = "src"
+srcDir      = "src"
+skipDirs    = @["examples"]
 
 # Dependencies
 requires "nim >= 0.19.2"

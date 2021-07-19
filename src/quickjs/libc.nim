@@ -1,4 +1,4 @@
-import private/build_config, core
+import build_config, core
 
 proc js_init_module_std*(ctx: JSContext, module_name: cstring): JSModuleDef {.header: headerquickjs.}
 proc js_init_module_os*(ctx: JSContext, module_name: cstring): JSModuleDef {.header: headerquickjs.}
