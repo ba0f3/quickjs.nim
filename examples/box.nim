@@ -8,7 +8,7 @@ type
     x: float
     y: float
     hasItem: bool
-    contains: array[3, int]
+    contains: seq[int]
 
 var box = Box(
   name: "Magic box",
@@ -17,7 +17,7 @@ var box = Box(
   x: 10.5,
   y: 3.1,
   hasItem: true,
-  contains: [1, 2, 3]
+  contains: @[1, 2, 3]
 )
 
 proc box_area(ctx: JSContext, this: JSValue, argc: cint, argv: ptr UncheckedArray[JSValue]): JSValue {.cdecl.} =
@@ -36,19 +36,5 @@ var e = newEngine()
 let (box_class, _) = e.createClass(Box, js_box_funcs)
 e.registerValue("Box", box_class)
 e.registerValue("box", box)
-let ret = e.evalString("""
-console.log(Box);
-console.log("box", JSON.stringify(box));
-console.log("width", box.width, "height", box.height, "area", box.area());
-box.height = 6
-console.log("width", box.width, "height", box.height, "area", box.area());
-box.contains.push(4);
-console.log(box.contains)
-
-const fruits = ["Banana", "Orange", "Apple", "Mango"];
-fruits.push("Kiwi");   // Adds "Kiwi"
-console.log(fruits)
-""")
-echo box
-assert e.rv == JS_UNDEFINED
+let ret = e.evalFile("box.js")
 quit(ret)

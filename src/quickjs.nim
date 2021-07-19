@@ -13,6 +13,8 @@ proc `=destroy`*(e: var Engine) =
   JS_FreeRuntime(e.rt)
 
 var tblClassIds = initTable[string, JSClassID]()
+var js_nim_object_class_id: JSClassID
+
 
 proc initCustomContext(rt: JSRuntime): JSContext =
   result = JS_NewContext(rt)
@@ -26,7 +28,6 @@ proc initCustomContext(rt: JSRuntime): JSContext =
 
   else:
     raise newException(IOError, "failed to create new context")
-
 
 proc newEngine*(): Engine =
   ## Create new Javascript Engine
@@ -72,11 +73,11 @@ proc registerObject*(e: Engine, objectName: string, functions: openArray[JSCFunc
   ## Register global object with function list
   result = JS_NewObject(e.ctx)
   e.registerFunctionList(result, functions)
-  let global_obj = JS_GetGlobalObject(e.ctx);
+  let global_obj = JS_GetGlobalObject(e.ctx)
   discard JS_SetPropertyStr(e.ctx, global_obj, objectName, result)
   JS_FreeValue(e.ctx, global_obj)
 
-proc createValue*[T](ctx: JSContext, value: T, flags: int32 = JS_PROP_C_W_E): JSValue {.discardable.} =
+proc makeValue[T](ctx: JSContext, value: T, flags: int32 = JS_PROP_C_W_E): JSValue {.discardable.} =
   ## Create Javascript value from Nim types
   when T is object:
     if tblClassIds.hasKey($T):
@@ -85,12 +86,12 @@ proc createValue*[T](ctx: JSContext, value: T, flags: int32 = JS_PROP_C_W_E): JS
     else:
       result = JS_NewObject(ctx)
       for k, v in value.fieldPairs():
-        let val = createValue(ctx, v)
+        let val = makeValue(ctx, v)
         discard JS_DefinePropertyValueStr(ctx, result, k, val, flags)
-  elif T is array or T is seq:
+  elif T is seq: # T is array or
     result = JS_NewArray(ctx)
     for i in 0..<value.len:
-      let val = createValue(ctx, value[i])
+      let val = makeValue(ctx, value[i])
       discard JS_DefinePropertyValueUint32(ctx, result, i.uint32, val, flags)
   elif T is SomeSignedInt:
     if sizeof(value) == sizeof(int64):
@@ -109,14 +110,25 @@ proc createValue*[T](ctx: JSContext, value: T, flags: int32 = JS_PROP_C_W_E): JS
   elif T is string or T is cstring:
     result = JS_NewString(ctx, value.cstring)
   else:
-    JS_ThrowTypeError(ctx, $T &" type not supported")
+    JS_ThrowTypeError(ctx, $T & " not supported")
 
-proc getValue*[T](ctx: JSContext, val: JSValue, v: ptr T): bool =
+proc getValue[T](ctx: JSContext, val: JSValue, v: ptr T): bool =
   when T is object:
     if tblClassIds.hasKey($T):
       v = cast[ptr T](JS_GetOpaque(val, tblClassIds[$T]))
-  elif T is array or T is seq:
-    discard
+  elif T is seq: # T is array or
+    v[] = @[]
+    var tmp = JS_GetPropertyStr(ctx, val, "length")
+    if JS_IsException(tmp):
+        return false
+    var length: uint32
+    discard JS_ToUint32(ctx, addr length, tmp)
+    for i in 0..<length:
+      tmp = JS_GetPropertyUint32(ctx, val, i)
+      var v1: v[0].type
+      discard getValue(ctx, tmp, addr v1)
+      v[].add v1
+    return true
   elif T is SomeSignedInt:
     when sizeof(T) == sizeof(int64):
       return JS_ToInt64(ctx, cast[ptr int64](v), val) == 0
@@ -138,7 +150,7 @@ proc getValue*[T](ctx: JSContext, val: JSValue, v: ptr T): bool =
   elif T is cstring:
     return JS_ToCString(ctx, v, val) == 0
   else:
-    JS_ThrowTypeError(ctx, $T &" type not supported")
+    JS_ThrowTypeError(ctx, $T & " not supported")
 
 proc registerValue*(e: Engine, parent: JSValue, name: string, val: JSValue, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
   ## Register a Javascript value as child of `parent`
@@ -152,7 +164,7 @@ proc registerValue*(e: Engine, name: string, val: JSValue, flags: int32 = JS_PRO
 
 proc registerValue*(e: Engine, name: string, val: auto, flags: int32 = JS_PROP_C_W_E): int {.discardable.} =
   ## Register a Nim variable as global Javascript value
-  let jsVal = createValue(e.ctx, val)
+  let jsVal = makeValue(e.ctx, val)
   result = e.registerValue(name, jsVal, flags)
 
 proc registerFunction*(e: Engine, parent: JSValue, name: string, paramCount: int, fn: JSCFunction) =
@@ -219,7 +231,7 @@ proc createClass*(e: Engine, T: typedesc, functions: openArray[JSCFunctionListEn
     var i = 0
     for k, v in s[].fieldPairs():
       if i == magic:
-        return createValue(ctx, v)
+        return makeValue(ctx, v)
       inc(i)
 
   proc js_default_setter(ctx: JSContext, this: JSValueConst, val: JSValue, magic: int32): JSValue {.cdecl.} =
@@ -246,7 +258,8 @@ proc createClass*(e: Engine, T: typedesc, functions: openArray[JSCFunctionListEn
   var
     js_proto_functions: seq[JSCFunctionListEntry]
     i = 0'i16
-  var t: T
+    t: T
+
   for k, v in t.fieldPairs():
     js_proto_functions.add(JS_CGETSET_MAGIC_DEF(k, js_default_getter, js_default_setter, i))
     inc(i)
